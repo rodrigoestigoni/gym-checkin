@@ -1,15 +1,14 @@
-// frontend/src/App.jsx
 import React, { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import Login from './components/Login';
+import Register from './components/Register';
 import CheckinForm from './components/CheckinForm';
 import Dashboard from './components/Dashboard';
 import History from './components/History';
 import Ranking from './components/Ranking';
 
 const App = () => {
-  // Armazena dados do usuário (token, id, username, etc)
   const [user, setUser] = useState(null);
 
   return (
@@ -18,6 +17,7 @@ const App = () => {
       <div className="container mx-auto p-4">
         <Routes>
           <Route path="/login" element={<Login setUser={setUser} />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/checkin" element={<CheckinForm user={user} />} />
           <Route path="/dashboard" element={<Dashboard user={user} />} />
           <Route path="/history" element={<History user={user} />} />

@@ -30,7 +30,10 @@ const Header = ({ user, setUser }) => {
             </button>
           </>
         ) : (
-          <Link to="/login" className="hover:text-green-500">Login</Link>
+          <>
+            <Link to="/login" className="hover:text-green-500">Login</Link>
+            <Link to="/register" className="hover:text-green-500">Registrar</Link>
+          </>
         )}
       </nav>
     </header>
