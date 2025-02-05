@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from app.database import engine, Base
 
-from . import routes
+from app import routes
 
 # Cria as tabelas
 Base.metadata.create_all(bind=engine)
