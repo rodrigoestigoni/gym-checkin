@@ -42,3 +42,11 @@ class CheckIn(CheckInBase):
 
     class Config:
         orm_mode = True
+
+class CheckInUpdate(BaseModel):
+    duration: Optional[float]
+    description: Optional[str]
+
+class UserUpdate(BaseModel):
+    username: Optional[str]
+    profile_image: Optional[str]  # armazena o caminho/URL da imagem

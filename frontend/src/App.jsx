@@ -16,6 +16,8 @@ const App = () => {
       <Header user={user} setUser={setUser} />
       <div className="container mx-auto p-4">
         <Routes>
+          <Route path="/admin" element={<AdminPanel user={user} />} />
+          <Route path="/profile" element={<Profile user={user} setUser={setUser} />} />
           <Route path="/login" element={<Login setUser={setUser} />} />
           <Route path="/register" element={<Register />} />
           <Route path="/checkin" element={<CheckinForm user={user} />} />

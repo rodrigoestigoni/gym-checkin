@@ -49,3 +49,22 @@ def update_user_status_and_points(db: Session, user_id: int):
 
 def get_ranking(db: Session, limit: int = 10):
     return db.query(models.User).order_by(models.User.points.desc()).limit(limit).all()
+
+def get_checkin(db: Session, checkin_id: int):
+    return db.query(models.CheckIn).filter(models.CheckIn.id == checkin_id).first()
+
+def update_checkin(db: Session, checkin, update: schemas.CheckInUpdate):
+    if update.duration is not None:
+        checkin.duration = update.duration
+    if update.description is not None:
+        checkin.description = update.description
+    db.commit()
+    db.refresh(checkin)
+    return checkin
+
+def delete_checkin(db: Session, checkin):
+    db.delete(checkin)
+    db.commit()
+
+def get_all_users(db: Session):
+    return db.query(models.User).all()

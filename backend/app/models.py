@@ -1,3 +1,4 @@
+# models.py
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Text, Boolean
 from sqlalchemy.sql import func
 from .database import Base
@@ -8,8 +9,9 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     password_hash = Column(String)
     is_admin = Column(Boolean, default=False)
-    status = Column(String, default="normal")  # "normal" ou "verde"
+    status = Column(String, default="normal")
     points = Column(Integer, default=0)
+    profile_image = Column(String, nullable=True)  # Armazena o caminho ou URL da imagem
 
 class CheckIn(Base):
     __tablename__ = "checkins"
