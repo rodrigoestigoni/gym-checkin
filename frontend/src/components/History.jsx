@@ -23,16 +23,36 @@ const History = ({ user }) => {
 
   useEffect(() => {
     fetchCheckins();
-  }, [user, page]);
+  }, [user, page, API_URL]);
 
   const handleEditSuccess = (updatedCheckin) => {
-    // Se updatedCheckin for null, significa que o checkin foi deletado.
     if (!updatedCheckin) {
-      setCheckins(checkins.filter(ci => ci.id !== editingId));
+      // Checkin foi excluído
+      setCheckins(checkins.filter((ci) => ci.id !== editingId));
     } else {
-      setCheckins(checkins.map(ci => (ci.id === updatedCheckin.id ? updatedCheckin : ci)));
+      setCheckins(checkins.map((ci) => (ci.id === updatedCheckin.id ? updatedCheckin : ci)));
     }
     setEditingId(null);
+  };
+
+  const handleDeleteCheckin = async (checkinId) => {
+    if (window.confirm("Tem certeza que deseja excluir este checkin?")) {
+      try {
+        const res = await fetch(`${API_URL}/checkins/${checkinId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        });
+        if (res.ok) {
+          setCheckins(checkins.filter((ci) => ci.id !== checkinId));
+        } else {
+          console.error("Erro ao excluir checkin");
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
   };
 
   return (
@@ -56,11 +76,14 @@ const History = ({ user }) => {
                   {ci.description && <p>Descrição: {ci.description}</p>}
                 </div>
                 <div className="flex flex-col space-y-1">
-                  <button onClick={() => setEditingId(ci.id)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                  <button 
+                    onClick={() => setEditingId(ci.id)}
+                    className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                  >
                     Editar
                   </button>
                   <button 
-                    onClick={() => setEditingId(ci.id)} // Poderia abrir o mesmo formulário para confirmação de exclusão ou similar
+                    onClick={() => handleDeleteCheckin(ci.id)}
                     className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                   >
                     Excluir
@@ -73,10 +96,17 @@ const History = ({ user }) => {
       </ul>
       {checkins.length === limit && (
         <div className="flex justify-between mt-4">
-          <button disabled={page === 0} onClick={() => setPage(page - 1)} className="px-4 py-2 bg-gray-300 rounded">
+          <button 
+            disabled={page === 0} 
+            onClick={() => setPage(page - 1)} 
+            className="px-4 py-2 bg-gray-300 rounded"
+          >
             Anterior
           </button>
-          <button onClick={() => setPage(page + 1)} className="px-4 py-2 bg-gray-300 rounded">
+          <button 
+            onClick={() => setPage(page + 1)} 
+            className="px-4 py-2 bg-gray-300 rounded"
+          >
             Próximo
           </button>
         </div>
