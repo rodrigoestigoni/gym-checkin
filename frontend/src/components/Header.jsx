@@ -35,7 +35,7 @@ const Header = ({ user, setUser }) => {
         <div className="flex-1 text-center">
           <Link to="/" className="flex items-center justify-center">
             <FontAwesomeIcon icon={faDumbbell} className="text-green-500 mr-2" size="2x" />
-            <span className="text-xl font-bold">Gym CheckIn</span>
+            <span className="text-xl font-bold">Shape 2025</span>
           </Link>
         </div>
 

@@ -11,6 +11,7 @@ import RankingWeekly from "./components/RankingWeekly";
 import AdminPanel from "./components/AdminPanel";
 import Profile from "./components/Profile";
 import PrivateRoute from "./components/PrivateRoute";
+import RankingTabs from "./components/RankingTabs";
 
 const App = () => {
   // Inicialize "user" como undefined para indicar que ainda não foi carregado.
@@ -73,7 +74,7 @@ const App = () => {
             path="/ranking"
             element={
               <PrivateRoute user={user}>
-                <Ranking />
+                <RankingTabs />
               </PrivateRoute>
             }
           />
