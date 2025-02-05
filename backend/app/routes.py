@@ -35,15 +35,23 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         "user": user
     }
 
-# Função para obter o usuário atual
+from jose import JWTError  # Certifique-se de ter instalado python-jose
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    token_data = auth.decode_token(token)
-    if token_data is None:
+    try:
+        # Aqui, auth.decode_token deve lançar um JWTError se o token estiver inválido ou expirado.
+        token_data = auth.decode_token(token)
+    except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
-    user = crud.get_user_by_username(db, token_data.username)
+    
+    if token_data is None or not token_data.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+    
+    user = crud.get_user_by_username(db, token_data["sub"])
     if user is None:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return user
+
 
 @router.get("/admin/users", response_model=list[schemas.User])
 def list_users(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
