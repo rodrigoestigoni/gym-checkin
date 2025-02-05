@@ -15,7 +15,7 @@ const AdminPanel = ({ user }) => {
         .then(setUsers)
         .catch((err) => console.error(err));
     }
-  }, [user]);
+  }, [user, API_URL]);
 
   return (
     <div className="max-w-4xl mx-auto p-4">

@@ -35,6 +35,7 @@ class CheckInBase(BaseModel):
 
 class CheckInCreate(CheckInBase):
     user_id: int
+    timestamp: Optional[datetime] = None
 
 class CheckIn(CheckInBase):
     id: int
@@ -47,6 +48,7 @@ class CheckIn(CheckInBase):
 class CheckInUpdate(BaseModel):
     duration: Optional[float]
     description: Optional[str]
+    timestamp: Optional[datetime] = None
 
 class UserUpdate(BaseModel):
     username: Optional[str]

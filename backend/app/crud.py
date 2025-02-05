@@ -3,6 +3,9 @@ from sqlalchemy import func
 from datetime import datetime, timedelta
 from . import models, schemas, config
 
+def get_all_users(db: Session):
+    return db.query(models.User).all()
+
 def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
     db_user = models.User(username=user.username, password_hash=hashed_password, is_admin=user.is_admin)
     db.add(db_user)
@@ -14,12 +17,12 @@ def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(func.lower(models.User.username) == username.lower()).first()
 
 def create_checkin(db: Session, checkin: schemas.CheckInCreate):
-    db_checkin = models.CheckIn(**checkin.dict())
+    db_checkin = models.CheckIn(**checkin.dict(exclude_unset=True))
     db.add(db_checkin)
     db.commit()
     db.refresh(db_checkin)
-    update_user_status_and_points(db, checkin.user_id)
     return db_checkin
+
 
 def get_checkins_by_user_between(db: Session, user_id: int, start_date: datetime, end_date: datetime):
     return db.query(models.CheckIn).filter(
@@ -55,10 +58,9 @@ def get_checkin(db: Session, checkin_id: int):
     return db.query(models.CheckIn).filter(models.CheckIn.id == checkin_id).first()
 
 def update_checkin(db: Session, checkin, update: schemas.CheckInUpdate):
-    if update.duration is not None:
-        checkin.duration = update.duration
-    if update.description is not None:
-        checkin.description = update.description
+    update_data = update.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(checkin, key, value)
     db.commit()
     db.refresh(checkin)
     return checkin

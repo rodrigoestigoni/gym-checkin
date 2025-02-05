@@ -45,6 +45,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return user
 
+@router.get("/admin/users", response_model=list[schemas.User])
+def list_users(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    return crud.get_all_users(db)
+
+
 ### Endpoint de registro de usuário
 @router.post("/register/", response_model=schemas.User)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -99,11 +106,11 @@ def update_checkin(checkin_id: int, update: schemas.CheckInUpdate, db: Session =
     checkin = crud.get_checkin(db, checkin_id)
     if not checkin:
         raise HTTPException(status_code=404, detail="Checkin não encontrado")
-    # Garante que o usuário possa editar seu próprio checkin ou é admin
     if checkin.user_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Não autorizado")
     updated = crud.update_checkin(db, checkin, update)
     return updated
+
 
 # Endpoint para remover um checkin
 @router.delete("/checkins/{checkin_id}", status_code=204)
