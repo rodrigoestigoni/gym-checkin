@@ -140,13 +140,10 @@ def update_profile(
 
 @router.get("/ranking/weekly")
 def weekly_ranking(db: Session = Depends(get_db)):
-    # Determina a última semana completa.
-    # Supondo que a semana seja de domingo a sábado.
+    # Determina a última semana completa (domingo a sábado)
     today = datetime.utcnow().date()
-    # Em Python, weekday(): Monday=0, ..., Sunday=6.
-    # Para obter a última semana completa, vamos considerar:
-    #   - Se hoje é domingo (6), a semana passada foi de domingo a sábado.
-    #   - Caso contrário, encontre o último sábado.
+    # Se hoje for domingo (weekday() == 6) ou se quisermos sempre considerar a semana passada,
+    # ajustamos: (aqui, se hoje for domingo, vamos considerar a semana passada; senão, encontramos o último sábado)
     if today.weekday() == 6:
         last_saturday = today - timedelta(days=1)
     else:
@@ -155,50 +152,53 @@ def weekly_ranking(db: Session = Depends(get_db)):
     start_dt = datetime.combine(last_sunday, datetime.min.time())
     end_dt = datetime.combine(last_saturday, datetime.max.time())
 
-    # Verifica se essa semana já foi processada
+    # Verifica se essa semana já foi processada para atualização de weeks_won
     weekly_record = db.query(models.WeeklyUpdate).filter(
         models.WeeklyUpdate.week_start == start_dt,
         models.WeeklyUpdate.week_end == end_dt
     ).first()
 
+    # Consulta todos os checkins da última semana
+    weekly_data = db.query(
+        models.CheckIn.user_id,
+        func.count(models.CheckIn.id).label("count")
+    ).filter(
+        models.CheckIn.timestamp >= start_dt,
+        models.CheckIn.timestamp <= end_dt
+    ).group_by(models.CheckIn.user_id).all()
+
+    # Para atualização: considere apenas os usuários que atingiram o mínimo
+    eligible_scores = {user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS}
+
     if not weekly_record:
-        # Se ainda não processada, consulta os checkins da última semana.
-        weekly_data = db.query(models.CheckIn.user_id, func.count(models.CheckIn.id).label("count")).filter(
-            models.CheckIn.timestamp >= start_dt,
-            models.CheckIn.timestamp <= end_dt
-        ).group_by(models.CheckIn.user_id).all()
-
-        # Cria um dicionário {user_id: count} para usuários que atingiram o mínimo
-        weekly_scores = { user_id: count for user_id, count in weekly_data }
-
-        # Atualiza o campo weeks_won para cada usuário que atingiu o mínimo
-        if weekly_scores:
-            users_to_update = db.query(models.User).filter(models.User.id.in_(list(weekly_scores.keys()))).all()
+        # Atualiza weeks_won apenas para usuários elegíveis
+        if eligible_scores:
+            users_to_update = db.query(models.User).filter(
+                models.User.id.in_(list(eligible_scores.keys()))
+            ).all()
             for user_obj in users_to_update:
-                # Incrementa weeks_won em 1 para cada usuário elegível
                 user_obj.weeks_won += 1
             db.commit()
-
         # Registra que essa semana foi processada
         new_update = models.WeeklyUpdate(week_start=start_dt, week_end=end_dt)
         db.add(new_update)
         db.commit()
 
-    # para o podium, vamos considerar os checkins da última semana
-    weekly_data = db.query(models.CheckIn.user_id, func.count(models.CheckIn.id).label("count")).filter(
-        models.CheckIn.timestamp >= start_dt,
-        models.CheckIn.timestamp <= end_dt
-    ).group_by(models.CheckIn.user_id).all()
-    weekly_scores = { user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS }
-    
-    eligible_users = []
-    if weekly_scores:
-        eligible_users = db.query(models.User).filter(models.User.id.in_(list(weekly_scores.keys()))).all()
-    # Anexa o atributo "weekly_score" para ordenação
-    for user_obj in eligible_users:
-        user_obj.weekly_score = weekly_scores.get(user_obj.id, 0)
-    
-    podium_users = sorted(eligible_users, key=lambda u: u.weekly_score, reverse=True)[:3]
+    # Para exibição, use a contagem real de checkins (mesmo para quem não atingiu o mínimo)
+    display_scores = {user_id: count for user_id, count in weekly_data}
+
+    # Recupera os usuários que fizeram checkins (mesmo se não alcançaram o mínimo)
+    display_users = db.query(models.User).filter(
+        models.User.id.in_(list(display_scores.keys()))
+    ).all()
+    for user_obj in display_users:
+        user_obj.weekly_score = display_scores.get(user_obj.id, 0)
+
+    # Ordena os usuários por weekly_score em ordem decrescente
+    display_users.sort(key=lambda u: u.weekly_score, reverse=True)
+
+    # Define o podium: os 3 primeiros
+    podium_users = display_users[:3]
     podium_data = [
         {
             "id": u.id,
@@ -209,8 +209,8 @@ def weekly_ranking(db: Session = Depends(get_db)):
         }
         for u in podium_users
     ]
-    
-    # Resumo geral: retorna todos os usuários ordenados por weeks_won (descendente)
+
+    # Resumo geral: todos os usuários ordenados por weeks_won (descendente)
     summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
     summary_data = [
         {
@@ -221,5 +221,5 @@ def weekly_ranking(db: Session = Depends(get_db)):
         }
         for u in summary_users
     ]
-    
+
     return {"podium": podium_data, "summary": summary_data}
