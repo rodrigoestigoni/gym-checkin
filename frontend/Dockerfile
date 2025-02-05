@@ -4,7 +4,8 @@ FROM node:18-alpine as build
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm install
+# Força a instalação de todas as dependências
+RUN npm ci --include=dev
 
 COPY . ./
 RUN npm run build
@@ -13,8 +14,6 @@ RUN npm run build
 FROM nginx:alpine
 
 COPY --from=build /app/build /usr/share/nginx/html
-# Copia um arquivo de configuração customizado do Nginx, se necessário (opcional)
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
