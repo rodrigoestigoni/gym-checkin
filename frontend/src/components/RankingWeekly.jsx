@@ -9,16 +9,20 @@ const RankingWeekly = () => {
     fetch(`${API_URL}/ranking/weekly`)
       .then((res) => res.json())
       .then((data) => {
-        // Espera-se que data.podium tenha os top 3 em ordem e data.summary contenha todos os usuários ordenados por weeks_won
-        setPodium(data.podium);
-        // Para os demais, podemos filtrar da lista geral (excluindo os que estão no podium)
-        // Se data.summary não for exatamente a lista dos demais, você pode ajustar conforme a resposta do seu endpoint.
-        // Aqui, assumiremos que data.summary contém todos os usuários e que os três primeiros são os podium.
-        if (data.summary && data.summary.length > 3) {
-          setOthers(data.summary.slice(3));
-        } else {
-          setOthers([]);
-        }
+        // Considerando que data.podium e data.summary são retornados pelo endpoint
+        // Mas vamos recalcular o podium usando data.summary caso seja necessário
+        let summaryList = data.summary || [];
+        // Ordena a lista por weekly_score ou outro campo que represente a contagem da semana.
+        // Supondo que cada item tenha um campo 'weekly_score' (se não, você pode calcular na hora ou usar 'points' se for o caso)
+        summaryList.sort((a, b) => (b.weekly_score || 0) - (a.weekly_score || 0));
+        
+        // O podium será os 3 primeiros da lista ordenada
+        const podiumUsers = summaryList.slice(0, 3);
+        // O restante dos usuários
+        const otherUsers = summaryList.slice(3);
+        
+        setPodium(podiumUsers);
+        setOthers(otherUsers);
       })
       .catch((err) => console.error(err));
   }, [API_URL]);
@@ -26,10 +30,10 @@ const RankingWeekly = () => {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-4 text-center">Podium Semanal</h1>
-      <div className="flex justify-center items-end mb-8">
-        {/* Segundo colocado à esquerda */}
+      <div className="flex flex-col md:flex-row md:justify-center items-end mb-8">
+        {/* Segundo colocado (exibido à esquerda em desktop) */}
         {podium[1] && (
-          <div className="flex flex-col items-center mx-4">
+          <div className="flex flex-col items-center mx-2 mb-4 md:mb-0">
             <div
               className="bg-white p-2 rounded-full border shadow"
               style={{ height: "100px", width: "100px" }}
@@ -48,11 +52,12 @@ const RankingWeekly = () => {
             </div>
             <div className="mt-2 font-bold text-lg">2º</div>
             <div className="text-sm">{podium[1].username}</div>
+            <div className="text-sm text-gray-500">Score: {podium[1].weekly_score || 0}</div>
           </div>
         )}
-        {/* Primeiro colocado ao centro */}
+        {/* Primeiro colocado (central) */}
         {podium[0] && (
-          <div className="flex flex-col items-center mx-4">
+          <div className="flex flex-col items-center mx-2 mb-4 md:mb-0">
             <div
               className="bg-white p-2 rounded-full border shadow"
               style={{ height: "140px", width: "140px" }}
@@ -71,11 +76,12 @@ const RankingWeekly = () => {
             </div>
             <div className="mt-2 font-bold text-xl">1º</div>
             <div className="text-sm">{podium[0].username}</div>
+            <div className="text-sm text-gray-500">Score: {podium[0].weekly_score || 0}</div>
           </div>
         )}
-        {/* Terceiro colocado à direita */}
+        {/* Terceiro colocado */}
         {podium[2] && (
-          <div className="flex flex-col items-center mx-4">
+          <div className="flex flex-col items-center mx-2 mb-4 md:mb-0">
             <div
               className="bg-white p-2 rounded-full border shadow"
               style={{ height: "90px", width: "90px" }}
@@ -94,42 +100,45 @@ const RankingWeekly = () => {
             </div>
             <div className="mt-2 font-bold text-lg">3º</div>
             <div className="text-sm">{podium[2].username}</div>
+            <div className="text-sm text-gray-500">Score: {podium[2].weekly_score || 0}</div>
           </div>
         )}
       </div>
 
-      {/* Exibe a lista dos demais participantes */}
+      {/* Lista dos demais participantes com um design responsivo */}
       <h2 className="text-2xl font-bold mb-4 text-center">Outros Participantes</h2>
-      <table className="min-w-full bg-white shadow rounded">
-        <thead>
-          <tr>
-            <th className="py-2 border">Posição</th>
-            <th className="py-2 border">Usuário</th>
-            <th className="py-2 border">Imagem</th>
-            <th className="py-2 border">Pontos</th>
-          </tr>
-        </thead>
-        <tbody>
-          {others.map((user, index) => (
-            <tr key={user.id}>
-              <td className="py-2 border text-center">{index + 4}</td>
-              <td className="py-2 border text-center">{user.username}</td>
-              <td className="py-2 border text-center">
-                {user.profile_image ? (
-                  <img
-                    src={user.profile_image}
-                    alt="perfil"
-                    className="h-8 w-8 rounded-full mx-auto object-cover"
-                  />
-                ) : (
-                  <span className="text-gray-500">Sem imagem</span>
-                )}
-              </td>
-              <td className="py-2 border text-center">{user.points}</td>
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white shadow rounded">
+          <thead>
+            <tr>
+              <th className="py-2 border px-2">Posição</th>
+              <th className="py-2 border px-2">Usuário</th>
+              <th className="py-2 border px-2">Imagem</th>
+              <th className="py-2 border px-2">Score</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {others.map((user, index) => (
+              <tr key={user.id}>
+                <td className="py-2 border text-center px-2">{index + 4}</td>
+                <td className="py-2 border text-center px-2">{user.username}</td>
+                <td className="py-2 border text-center px-2">
+                  {user.profile_image ? (
+                    <img
+                      src={user.profile_image}
+                      alt={user.username}
+                      className="h-8 w-8 rounded-full mx-auto object-cover"
+                    />
+                  ) : (
+                    <span className="text-gray-500">Sem imagem</span>
+                  )}
+                </td>
+                <td className="py-2 border text-center px-2">{user.weekly_score || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
