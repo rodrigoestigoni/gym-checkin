@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faDumbbell, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+import { faDumbbell, faSignOutAlt, faUserCog, faUser } from '@fortawesome/free-solid-svg-icons';
 
 const Header = ({ user, setUser }) => {
   const navigate = useNavigate();
@@ -24,6 +24,18 @@ const Header = ({ user, setUser }) => {
             <Link to="/dashboard" className="hover:text-green-500">Dashboard</Link>
             <Link to="/history" className="hover:text-green-500">Histórico</Link>
             <Link to="/ranking" className="hover:text-green-500">Ranking</Link>
+            {/* Links extras para administrador */}
+            {user.is_admin && (
+              <Link to="/admin" className="hover:text-green-500">
+                <FontAwesomeIcon icon={faUserCog} className="mr-1" />
+                Admin
+              </Link>
+            )}
+            {/* Link para perfil (para qualquer usuário) */}
+            <Link to="/profile" className="hover:text-green-500">
+              <FontAwesomeIcon icon={faUser} className="mr-1" />
+              Perfil
+            </Link>
             <button onClick={handleLogout} className="flex items-center hover:text-red-500">
               <FontAwesomeIcon icon={faSignOutAlt} className="mr-1" />
               Sair
