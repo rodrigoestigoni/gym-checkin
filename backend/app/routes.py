@@ -140,23 +140,22 @@ def update_profile(
 
 @router.get("/ranking/weekly")
 def weekly_ranking(db: Session = Depends(get_db)):
-    # Determina a última semana completa (domingo a sábado)
+    # Definindo a semana: consideramos que a semana inicia no domingo.
     today = datetime.utcnow().date()
-    if today.weekday() == 6:
-        last_saturday = today - timedelta(days=1)
-    else:
-        last_saturday = today - timedelta(days=today.weekday() + 2)
-    last_sunday = last_saturday - timedelta(days=6)
+    # Calcula quantos dias subtrair para chegar ao último domingo.
+    days_to_subtract = (today.weekday() + 1) % 7
+    last_sunday = today - timedelta(days=days_to_subtract)
     start_dt = datetime.combine(last_sunday, datetime.min.time())
-    end_dt = datetime.combine(last_saturday, datetime.max.time())
+    now = datetime.utcnow()
+    
+    # Se a semana estiver completa (último sábado já passou), consideramos a semana fechada.
+    last_saturday = last_sunday + timedelta(days=6)
+    week_closed = now >= datetime.combine(last_saturday, datetime.max.time())
+    
+    # Se a semana estiver completa, definimos o fim como o fim do sábado; se não, usamos "now".
+    end_dt = datetime.combine(last_saturday, datetime.max.time()) if week_closed else now
 
-    # Verifica se essa semana já foi processada para atualização de weeks_won
-    weekly_record = db.query(models.WeeklyUpdate).filter(
-        models.WeeklyUpdate.week_start == start_dt,
-        models.WeeklyUpdate.week_end == end_dt
-    ).first()
-
-    # Consulta todos os checkins da última semana
+    # Consulta todos os checkins entre start_dt e end_dt.
     weekly_data = db.query(
         models.CheckIn.user_id,
         func.count(models.CheckIn.id).label("count")
@@ -164,40 +163,49 @@ def weekly_ranking(db: Session = Depends(get_db)):
         models.CheckIn.timestamp >= start_dt,
         models.CheckIn.timestamp <= end_dt
     ).group_by(models.CheckIn.user_id).all()
-
-    # Para exibição: conta real de checkins, sem filtro
-    display_scores = {user_id: count for user_id, count in weekly_data}
-    # Para atualização: apenas usuários que atingiram o mínimo
-    eligible_scores = {user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS}
-
-    if not weekly_record:
-        if eligible_scores:
-            users_to_update = db.query(models.User).filter(
-                models.User.id.in_(list(eligible_scores.keys()))
-            ).all()
-            for user_obj in users_to_update:
-                user_obj.weeks_won += 1
+    
+    # Para exibição: conte todos os checkins (mesmo os abaixo do mínimo)
+    display_scores = { user_id: count for user_id, count in weekly_data }
+    
+    # (Opcional) Atualização de weeks_won se a semana estiver fechada e ainda não processada:
+    if week_closed:
+        weekly_record = db.query(models.WeeklyUpdate).filter(
+            models.WeeklyUpdate.week_start == start_dt,
+            models.WeeklyUpdate.week_end == datetime.combine(last_saturday, datetime.max.time())
+        ).first()
+        if not weekly_record:
+            # Apenas usuários com pelo menos MIN_TRAINING_DAYS checkins são elegíveis para ganhar a semana.
+            eligible_scores = { user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS }
+            if eligible_scores:
+                users_to_update = db.query(models.User).filter(
+                    models.User.id.in_(list(eligible_scores.keys()))
+                ).all()
+                for user_obj in users_to_update:
+                    user_obj.weeks_won += 1
+                db.commit()
+            new_update = models.WeeklyUpdate(
+                week_start=start_dt,
+                week_end=datetime.combine(last_saturday, datetime.max.time())
+            )
+            db.add(new_update)
             db.commit()
-        new_update = models.WeeklyUpdate(week_start=start_dt, week_end=end_dt)
-        db.add(new_update)
-        db.commit()
 
-    # Recupera os usuários que fizeram algum checkin na semana
+    # Busca os usuários que fizeram checkins na semana.
     if display_scores:
         display_users = db.query(models.User).filter(
             models.User.id.in_(list(display_scores.keys()))
         ).all()
     else:
         display_users = []
-
-    # Anexa a cada usuário o campo weekly_score (a contagem real de checkins)
+    
+    # Para cada usuário, anexa a contagem real em um atributo "weekly_score"
     for user_obj in display_users:
         user_obj.weekly_score = display_scores.get(user_obj.id, 0)
-
-    # Ordena os usuários por weekly_score de forma decrescente
+    
+    # Ordena os usuários por weekly_score (decrescente)
     display_users.sort(key=lambda u: u.weekly_score, reverse=True)
-
-    # O podium será os 3 primeiros
+    
+    # Podium: os 3 primeiros da lista
     podium_users = display_users[:3]
     podium_data = [
         {
@@ -209,17 +217,32 @@ def weekly_ranking(db: Session = Depends(get_db)):
         }
         for u in podium_users
     ]
+    
+    # Para facilitar, também retorne a lista completa de ranking semanal
+    weekly_list = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "profile_image": u.profile_image,
+            "weekly_score": u.weekly_score
+        }
+        for u in display_users
+    ]
+    
+    return {"podium": podium_data, "weekly": weekly_list}
 
-    # Resumo geral: retorna todos os usuários ordenados por weeks_won (descendente)
-    summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
-    summary_data = [
+
+@router.get("/ranking/overall")
+def overall_ranking(db: Session = Depends(get_db)):
+    users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
+    data = [
         {
             "id": u.id,
             "username": u.username,
             "profile_image": u.profile_image,
             "weeks_won": u.weeks_won,
+            "points": u.points
         }
-        for u in summary_users
+        for u in users
     ]
-
-    return {"podium": podium_data, "summary": summary_data}
+    return {"overall": data}

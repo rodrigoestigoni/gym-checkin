@@ -1,4 +1,3 @@
-// RankingTabs.jsx
 import React, { useState } from "react";
 import RankingWeekly from "./RankingWeekly";
 import OverallRanking from "./OverallRanking";
@@ -13,9 +12,7 @@ const RankingTabs = () => {
       <div className="flex border-b mb-4">
         <button
           className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${
-            activeTab === "weekly"
-              ? "border-b-2 border-green-500 font-bold"
-              : "text-gray-600"
+            activeTab === "weekly" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"
           }`}
           onClick={() => setActiveTab("weekly")}
         >
@@ -24,14 +21,12 @@ const RankingTabs = () => {
         </button>
         <button
           className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${
-            activeTab === "overall"
-              ? "border-b-2 border-green-500 font-bold"
-              : "text-gray-600"
+            activeTab === "overall" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"
           }`}
           onClick={() => setActiveTab("overall")}
         >
           <FontAwesomeIcon icon={faMedal} className="mr-2" />
-          Ranking das Semanas
+          Ranking Geral
         </button>
       </div>
       <div>
