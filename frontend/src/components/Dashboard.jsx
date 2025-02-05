@@ -4,9 +4,11 @@ const Dashboard = ({ user }) => {
   const [weeklyCheckins, setWeeklyCheckins] = useState([]);
   const [status, setStatus] = useState("normal");
 
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+
   useEffect(() => {
     if (user) {
-      fetch(`http://localhost:8000/users/${user.id}/checkins/week/`, {
+      fetch(`${API_URL}/users/${user.id}/checkins/week/`, {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },

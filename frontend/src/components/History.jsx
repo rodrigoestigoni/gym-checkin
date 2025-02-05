@@ -5,9 +5,11 @@ const History = ({ user }) => {
   const [page, setPage] = useState(0);
   const limit = 5;
 
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+
   useEffect(() => {
     if (user) {
-      fetch(`http://localhost:8000/users/${user.id}/checkins/?skip=${page * limit}&limit=${limit}`, {
+      fetch(`${API_URL}/users/${user.id}/checkins/?skip=${page * limit}&limit=${limit}`, {
         headers: {
           "Authorization": `Bearer ${user.token}`
         }

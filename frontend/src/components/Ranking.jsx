@@ -3,8 +3,10 @@ import React, { useEffect, useState } from 'react';
 const Ranking = () => {
   const [ranking, setRanking] = useState([]);
 
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+
   useEffect(() => {
-    fetch("http://localhost:8000/ranking/")
+    fetch(`${API_URL}/ranking/`)
       .then(res => res.json())
       .then(data => setRanking(data));
   }, []);
