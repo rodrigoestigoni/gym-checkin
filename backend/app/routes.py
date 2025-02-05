@@ -35,19 +35,19 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         "user": user
     }
 
-from jose import JWTError  # Certifique-se de ter instalado python-jose
+from jose import JWTError  # se você estiver usando python-jose
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
-        # Aqui, auth.decode_token deve lançar um JWTError se o token estiver inválido ou expirado.
         token_data = auth.decode_token(token)
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
     
-    if token_data is None or not token_data.get("sub"):
+    # Aqui, supondo que a sua classe TokenData tem a propriedade "username"
+    if token_data is None or not token_data.username:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
     
-    user = crud.get_user_by_username(db, token_data["sub"])
+    user = crud.get_user_by_username(db, token_data.username)
     if user is None:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
     return user
