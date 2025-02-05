@@ -1,3 +1,4 @@
+// frontend/src/components/Register.jsx
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
@@ -8,11 +9,12 @@ const Register = () => {
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const navigate = useNavigate();
-
-  const API_URL = process.env.REACT_APP_API_URL;
+  
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    console.log("handleRegister disparado");
     setError("");
     setMsg("");
 
@@ -22,15 +24,17 @@ const Register = () => {
     }
 
     const payload = { username, password, is_admin: false };
+    console.log("Payload:", payload);
 
     try {
-      const response = await fetch("http://${API_URL}:8000/register/", {
+      const response = await fetch(`${API_URL}/register/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
       });
+      console.log("Resposta do fetch:", response);
 
       if (response.ok) {
         setMsg("Registro realizado com sucesso! Redirecionando para login...");
@@ -39,13 +43,16 @@ const Register = () => {
         }, 2000);
       } else {
         const data = await response.json();
+        console.log("Resposta de erro:", data);
         setError(data.detail || "Erro ao registrar usuário.");
       }
     } catch (err) {
-      console.error(err);
+      console.error("Erro no fetch:", err);
       setError("Erro de conexão com o servidor.");
     }
   };
+
+  console.log("Register component renderizado");
 
   return (
     <div className="max-w-md mx-auto bg-white p-6 rounded shadow mt-8">

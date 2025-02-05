@@ -7,6 +7,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from app.database import engine, Base
+from app.logger_middleware import LoggingMiddleware
 
 from app import routes
 
@@ -14,6 +15,7 @@ from app import routes
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Gym CheckIn API")
+app.add_middleware(LoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
