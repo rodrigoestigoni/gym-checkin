@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.database import engine, Base
+from .database import engine, Base
 from . import routes
 
 # Cria as tabelas
