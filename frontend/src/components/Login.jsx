@@ -39,7 +39,7 @@ const Login = ({ setUser }) => {
         is_admin: data.user.is_admin,
         profile_image: data.user.profile_image,
         });
-        navigate("/dashboard");
+        navigate("/checkin");
       } else {
         setErro("Credenciais incorretas!");
       }
