@@ -9,35 +9,31 @@ const RankingWeekly = () => {
     fetch(`${API_URL}/ranking/weekly`)
       .then((res) => res.json())
       .then((data) => {
-        // data.weekly contém a lista completa ordenada pela contagem real de checkins
-        let summaryList = data.weekly || [];
-        // Ordena os usuários por weekly_score (maior primeiro)
-        summaryList.sort((a, b) => (b.weekly_score || 0) - (a.weekly_score || 0));
-
-        // O podium será os 3 primeiros (ou menos, se não houver 3)
-        const podiumUsers = summaryList.slice(0, 3);
-        // Os demais participantes
-        const otherUsers = summaryList.slice(3);
-
-        setPodium(podiumUsers);
-        setOthers(otherUsers);
+        console.log("Dados retornados:", data); // Debug para conferir o formato
+        // Use o array "podium" retornado pelo endpoint
+        setPodium(data.podium || []);
+        // Para os outros, use os usuários do resumo que não estão no podium
+        if (data.summary) {
+          const podiumIds = (data.podium || []).map(u => u.id);
+          setOthers(data.summary.filter(u => !podiumIds.includes(u.id)));
+        }
       })
       .catch((err) => console.error(err));
   }, [API_URL]);
 
-  // Função para renderizar cada posição do podium com tamanho diferenciado
+  // Função para renderizar cada item do podium com tamanho ajustado conforme a posição
   const renderPodiumItem = (user, position) => {
     if (!user) return null;
     let sizeClass = "";
     switch (position) {
-      case 1: // Primeiro colocado
-        sizeClass = "h-36 w-36"; // ex.: 144px
+      case 1:
+        sizeClass = "h-36 w-36";
         break;
-      case 2: // Segundo colocado
-        sizeClass = "h-28 w-28"; // ex.: 112px
+      case 2:
+        sizeClass = "h-28 w-28";
         break;
-      case 3: // Terceiro colocado
-        sizeClass = "h-24 w-24"; // ex.: 96px
+      case 3:
+        sizeClass = "h-24 w-24";
         break;
       default:
         sizeClass = "h-24 w-24";
@@ -69,17 +65,12 @@ const RankingWeekly = () => {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-4 text-center">Podium Semanal</h1>
-      <div
-        className={`flex flex-col ${
-          podium.length >= 3 ? "md:flex-row md:justify-center" : "justify-center"
-        } items-center mb-8 space-y-4 md:space-y-0 md:space-x-4`}
-      >
-        {/* Renderiza o podium em ordem: 1º, 2º, 3º */}
+      <div className="flex flex-col md:flex-row md:justify-center items-center mb-8 space-y-4 md:space-y-0 md:space-x-4">
         {podium.length > 0 && renderPodiumItem(podium[0], 1)}
         {podium.length > 1 && renderPodiumItem(podium[1], 2)}
         {podium.length > 2 && renderPodiumItem(podium[2], 3)}
       </div>
-
+      
       <h2 className="text-2xl font-bold mb-4 text-center">Outros Participantes</h2>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white shadow rounded">

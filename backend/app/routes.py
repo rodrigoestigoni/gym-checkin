@@ -140,61 +140,28 @@ def update_profile(
 
 @router.get("/ranking/weekly")
 def weekly_ranking(db: Session = Depends(get_db)):
-    # Determina a semana atual, considerando que a semana inicia no domingo.
+    # Definir a semana atual: começando no último domingo.
     today = datetime.utcnow().date()
-    # Calcula quantos dias subtrair para chegar ao último domingo
-    days_to_subtract = (today.weekday() + 1) % 7  # Se hoje for domingo, subtrai 0
+    days_to_subtract = (today.weekday() + 1) % 7  # Se hoje for domingo, subtrai 0.
     last_sunday = today - timedelta(days=days_to_subtract)
     start_dt = datetime.combine(last_sunday, datetime.min.time())
-    now = datetime.utcnow()
-    
-    # Se a semana estiver completa (último sábado já passou), usamos o fim do sábado; senão, usamos "now".
-    last_saturday = last_sunday + timedelta(days=6)
-    week_closed = now >= datetime.combine(last_saturday, datetime.max.time())
-    end_dt = datetime.combine(last_saturday, datetime.max.time()) if week_closed else now
+    now = datetime.utcnow()  # Fim: agora (para exibição, mesmo se a semana não estiver completa)
 
-    # Consulta todos os checkins da semana atual (desde o último domingo até end_dt)
+    # Consulta todos os checkins da semana atual
     weekly_data = db.query(
         models.CheckIn.user_id,
         func.count(models.CheckIn.id).label("count")
     ).filter(
         models.CheckIn.timestamp >= start_dt,
-        models.CheckIn.timestamp <= end_dt
+        models.CheckIn.timestamp <= now
     ).group_by(models.CheckIn.user_id).all()
     
-    # Para exibição: todas as contagens, sem filtro (chamado display_scores)
-    display_scores = { user_id: count for user_id, count in weekly_data }
+    # Cria um dicionário com a contagem real, sem filtro
+    display_scores = {user_id: count for user_id, count in weekly_data}
     
-    # Para atualização de pontos: somente usuários que completaram o mínimo
-    eligible_scores = { user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS }
+    # (Opcional: atualizar weeks_won somente quando a semana estiver completa, omitido aqui para exibição)
     
-    if week_closed:
-        # Verifica se essa semana já foi processada (para evitar múltiplas atribuições)
-        weekly_record = db.query(models.WeeklyUpdate).filter(
-            models.WeeklyUpdate.week_start == start_dt,
-            models.WeeklyUpdate.week_end == datetime.combine(last_saturday, datetime.max.time())
-        ).first()
-        if not weekly_record:
-            if eligible_scores:
-                users_to_update = db.query(models.User).filter(
-                    models.User.id.in_(list(eligible_scores.keys()))
-                ).all()
-                for user_obj in users_to_update:
-                    count = eligible_scores[user_obj.id]
-                    base_points = 10
-                    additional_points = 3 * max(0, count - MIN_TRAINING_DAYS)
-                    total_points = base_points + additional_points
-                    user_obj.weeks_won += 1
-                    user_obj.points += total_points
-                db.commit()
-            new_update = models.WeeklyUpdate(
-                week_start=start_dt,
-                week_end=datetime.combine(last_saturday, datetime.max.time())
-            )
-            db.add(new_update)
-            db.commit()
-
-    # Para exibição do ranking da semana, usamos a contagem real, mesmo para quem não atingiu o mínimo
+    # Busca os usuários que fizeram checkins na semana atual
     if display_scores:
         display_users = db.query(models.User).filter(
             models.User.id.in_(list(display_scores.keys()))
@@ -202,13 +169,14 @@ def weekly_ranking(db: Session = Depends(get_db)):
     else:
         display_users = []
     
+    # Anexa a cada usuário a contagem real de checkins na semana
     for user_obj in display_users:
         user_obj.weekly_score = display_scores.get(user_obj.id, 0)
     
-    # Ordena os usuários por weekly_score (decrescente)
+    # Ordena os usuários por weekly_score de forma decrescente
     display_users.sort(key=lambda u: u.weekly_score, reverse=True)
     
-    # Define o podium como os 3 primeiros
+    # Define o podium como os 3 primeiros (se existirem)
     podium_users = display_users[:3]
     podium_data = [
         {
@@ -221,7 +189,7 @@ def weekly_ranking(db: Session = Depends(get_db)):
         for u in podium_users
     ]
     
-    # Resumo geral: todos os usuários ordenados por weeks_won (descendente)
+    # Para o resumo geral, mantenha a lógica anterior
     summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
     summary_data = [
         {
