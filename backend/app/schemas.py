@@ -10,6 +10,10 @@ class UserCreate(UserBase):
     password: str
     is_admin: bool = False
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
 class User(UserBase):
     id: int
     status: str
@@ -17,10 +21,6 @@ class User(UserBase):
 
     class Config:
         orm_mode = True
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
 
 class LoginResponse(Token):
     user: User
