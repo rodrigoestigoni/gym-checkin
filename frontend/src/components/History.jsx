@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
+import EditCheckinForm from "./EditCheckinForm";
 
 const History = ({ user }) => {
   const [checkins, setCheckins] = useState([]);
+  const [editingId, setEditingId] = useState(null);
   const [page, setPage] = useState(0);
   const limit = 10;
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
-  useEffect(() => {
+  const fetchCheckins = () => {
     if (user) {
       fetch(`${API_URL}/users/${user.id}/checkins/?skip=${page * limit}&limit=${limit}`, {
         headers: {
@@ -17,7 +19,21 @@ const History = ({ user }) => {
         .then(setCheckins)
         .catch((err) => console.error(err));
     }
+  };
+
+  useEffect(() => {
+    fetchCheckins();
   }, [user, page]);
+
+  const handleEditSuccess = (updatedCheckin) => {
+    // Se updatedCheckin for null, significa que o checkin foi deletado.
+    if (!updatedCheckin) {
+      setCheckins(checkins.filter(ci => ci.id !== editingId));
+    } else {
+      setCheckins(checkins.map(ci => (ci.id === updatedCheckin.id ? updatedCheckin : ci)));
+    }
+    setEditingId(null);
+  };
 
   return (
     <div className="p-4">
@@ -25,11 +41,33 @@ const History = ({ user }) => {
       <ul>
         {checkins.map((ci) => (
           <li key={ci.id} className="border p-2 mb-2">
-            <p>
-              <strong>{new Date(ci.timestamp).toLocaleString()}</strong>
-            </p>
-            {ci.duration && <p>Duração: {ci.duration} minutos</p>}
-            {ci.description && <p>Descrição: {ci.description}</p>}
+            {editingId === ci.id ? (
+              <EditCheckinForm 
+                checkin={ci} 
+                user={user} 
+                onSuccess={handleEditSuccess}
+                onCancel={() => setEditingId(null)}
+              />
+            ) : (
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-bold">{new Date(ci.timestamp).toLocaleString()}</p>
+                  {ci.duration && <p>Duração: {ci.duration} minutos</p>}
+                  {ci.description && <p>Descrição: {ci.description}</p>}
+                </div>
+                <div className="flex flex-col space-y-1">
+                  <button onClick={() => setEditingId(ci.id)} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                    Editar
+                  </button>
+                  <button 
+                    onClick={() => setEditingId(ci.id)} // Poderia abrir o mesmo formulário para confirmação de exclusão ou similar
+                    className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            )}
           </li>
         ))}
       </ul>
