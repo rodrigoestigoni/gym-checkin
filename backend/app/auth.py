@@ -8,6 +8,11 @@ from .schemas import TokenData
 load_dotenv()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+print("\n")
+print("\n")
+print(SECRET_KEY);
+print("\n")
+print("\n")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
