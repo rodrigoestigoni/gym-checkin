@@ -16,7 +16,7 @@ const Login = ({ setUser }) => {
     const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
     try {
-      const res = await fetch(`http://${API_URL}:8000/token`, {
+      const res = await fetch(`${API_URL}:8000/token`, {
         method: "POST",
         body: formData,
       });
