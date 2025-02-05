@@ -5,7 +5,9 @@ import { faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 const CheckinForm = ({ user }) => {
   const [duration, setDuration] = useState("");
   const [description, setDescription] = useState("");
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState({ text: "", type: "" });
+
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   if (!user) return <p>Por favor, faça login.</p>;
 
@@ -16,9 +18,6 @@ const CheckinForm = ({ user }) => {
       duration: duration ? parseFloat(duration) : null,
       description: description || null
     };
-
-    const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
-    
     try {
       const res = await fetch(`${API_URL}/checkin/`, {
         method: "POST",
@@ -29,24 +28,29 @@ const CheckinForm = ({ user }) => {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        setMsg("Checkin realizado com sucesso!");
+        setMsg({ text: "Checkin realizado com sucesso!", type: "success" });
         setDuration("");
         setDescription("");
       } else {
-        setMsg("Erro ao realizar checkin.");
+        setMsg({ text: "Erro ao realizar checkin.", type: "error" });
       }
     } catch (error) {
       console.error(error);
-      setMsg("Erro ao conectar com o servidor.");
+      setMsg({ text: "Erro de conexão com o servidor.", type: "error" });
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white p-6 rounded shadow">
       <h2 className="text-xl font-bold mb-4 flex items-center">
-        <FontAwesomeIcon icon={faCheckCircle} className="mr-2 text-green-500" /> Fazer Checkin
+        <FontAwesomeIcon icon={faCheckCircle} className="mr-2 text-green-500" />
+        Fazer Checkin
       </h2>
-      {msg && <p className="mb-2">{msg}</p>}
+      {msg.text && (
+        <div className={`mb-4 p-2 rounded ${msg.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+          {msg.text}
+        </div>
+      )}
       <div className="mb-4">
         <label className="block text-gray-700">Tempo do treino (minutos) <span className="text-sm text-gray-400">(opcional)</span></label>
         <input 
