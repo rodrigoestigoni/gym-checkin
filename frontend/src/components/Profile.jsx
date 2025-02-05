@@ -62,6 +62,12 @@ const Profile = ({ user, setUser }) => {
             className="w-full"
           />
         </div>
+        {user.profile_image && (
+          <div className="mb-4">
+            <p className="text-gray-700">Imagem Atual:</p>
+            <img src={user.profile_image} alt="Perfil" className="h-24 w-24 rounded-full" />
+          </div>
+        )}
         <button type="submit" className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600">
           Atualizar Perfil
         </button>

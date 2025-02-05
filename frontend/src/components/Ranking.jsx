@@ -24,18 +24,18 @@ const Ranking = () => {
           </tr>
         </thead>
         <tbody>
-          {ranking.map((user, index) => (
-            <tr key={user.id}>
+          {ranking.map((u, index) => (
+            <tr key={u.id}>
               <td className="py-2 border text-center">{index + 1}</td>
-              <td className="py-2 border text-center">{user.username}</td>
+              <td className="py-2 border text-center">{u.username}</td>
               <td className="py-2 border text-center">
-                {user.profile_image ? (
-                  <img src={user.profile_image} alt="perfil" className="h-10 w-10 rounded-full mx-auto" />
+                {u.profile_image ? (
+                  <img src={u.profile_image} alt="perfil" className="h-10 w-10 rounded-full mx-auto" />
                 ) : (
-                  "Sem imagem"
+                  <span className="text-gray-500">Sem imagem</span>
                 )}
               </td>
-              <td className="py-2 border text-center">{user.points}</td>
+              <td className="py-2 border text-center">{u.points}</td>
             </tr>
           ))}
         </tbody>

@@ -24,16 +24,22 @@ const Header = ({ user, setUser }) => {
             <Link to="/dashboard" className="hover:text-green-500">Dashboard</Link>
             <Link to="/history" className="hover:text-green-500">Histórico</Link>
             <Link to="/ranking" className="hover:text-green-500">Ranking</Link>
-            {/* Links extras para administrador */}
             {user.is_admin && (
               <Link to="/admin" className="hover:text-green-500">
                 <FontAwesomeIcon icon={faUserCog} className="mr-1" />
                 Admin
               </Link>
             )}
-            {/* Link para perfil (para qualquer usuário) */}
-            <Link to="/profile" className="hover:text-green-500">
-              <FontAwesomeIcon icon={faUser} className="mr-1" />
+            <Link to="/profile" className="hover:text-green-500 flex items-center">
+              {user.profile_image ? (
+                <img
+                  src={user.profile_image}
+                  alt="perfil"
+                  className="h-8 w-8 rounded-full mr-1"
+                />
+              ) : (
+                <FontAwesomeIcon icon={faUser} className="mr-1" />
+              )}
               Perfil
             </Link>
             <button onClick={handleLogout} className="flex items-center hover:text-red-500">

@@ -1,3 +1,4 @@
+from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sys
@@ -16,6 +17,8 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Gym CheckIn API")
 app.add_middleware(LoggingMiddleware)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,

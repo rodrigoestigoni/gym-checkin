@@ -110,25 +110,29 @@ def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user:
     crud.delete_checkin(db, checkin)
     return
 
-# Endpoint para atualizar o perfil do usuário com upload de imagem
 @router.put("/users/me", response_model=schemas.User)
-def update_profile(username: str = None, file: UploadFile = File(None), db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+def update_profile(
+    username: str = None,
+    file: UploadFile = File(None),
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
     # Se houver arquivo, salve-o
     if file:
-        file_location = f"static/profile_images/{current_user.id}_{file.filename}"
-        os.makedirs(os.path.dirname(file_location), exist_ok=True)
+        # Cria o diretório, se não existir
+        directory = "static/profile_images"
+        os.makedirs(directory, exist_ok=True)
+        # Define o nome do arquivo
+        filename = f"{current_user.id}_{file.filename}"
+        file_location = f"{directory}/{filename}"
         with open(file_location, "wb") as f:
             shutil.copyfileobj(file.file, f)
-        current_user.profile_image = file_location  # ou uma URL baseada nisso
+        # Use uma variável de ambiente para a URL base do backend ou defina um padrão
+        backend_url = os.getenv("BACKEND_URL", "http://91.108.124.55:8000")
+        # Armazene a URL completa para acessar a imagem
+        current_user.profile_image = f"{backend_url}/static/profile_images/{filename}"
     if username:
         current_user.username = username
     db.commit()
     db.refresh(current_user)
     return current_user
-
-# Endpoint para listar todos os usuários (admin)
-@router.get("/admin/users", response_model=list[schemas.User])
-def list_users(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Acesso negado")
-    return crud.get_all_users(db)
