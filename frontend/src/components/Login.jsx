@@ -22,12 +22,23 @@ const Login = ({ setUser }) => {
       });
       if (res.ok) {
         const data = await res.json();
+        // Salve no localStorage
+        localStorage.setItem("user", JSON.stringify({
+        id: data.user.id,
+        username: data.user.username,
+        status: data.user.status,
+        token: data.access_token,
+        is_admin: data.user.is_admin,
+        profile_image: data.user.profile_image  // se houver
+        }));
         setUser({
-            id: data.user.id,
-            username: data.user.username,
-            status: data.user.status,
-            token: data.access_token,
-          });
+        id: data.user.id,
+        username: data.user.username,
+        status: data.user.status,
+        token: data.access_token,
+        is_admin: data.user.is_admin,
+        profile_image: data.user.profile_image,
+        });
         navigate("/dashboard");
       } else {
         setErro("Credenciais incorretas!");

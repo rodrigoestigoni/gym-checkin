@@ -18,6 +18,7 @@ class User(UserBase):
     id: int
     status: str
     points: int
+    profile_image: Optional[str] = None
 
     class Config:
         orm_mode = True

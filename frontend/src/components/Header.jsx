@@ -31,16 +31,16 @@ const Header = ({ user, setUser }) => {
               </Link>
             )}
             <Link to="/profile" className="hover:text-green-500 flex items-center">
-              {user.profile_image ? (
-                <img
-                  src={user.profile_image}
-                  alt="perfil"
-                  className="h-8 w-8 rounded-full mr-1"
-                />
-              ) : (
-                <FontAwesomeIcon icon={faUser} className="mr-1" />
-              )}
-              Perfil
+                {user.profile_image ? (
+                    <img
+                    src={user.profile_image}
+                    alt="perfil"
+                    className="h-8 w-8 rounded-full mr-1"
+                    />
+                ) : (
+                    <FontAwesomeIcon icon={faUser} className="mr-1" />
+                )}
+                Perfil
             </Link>
             <button onClick={handleLogout} className="flex items-center hover:text-red-500">
               <FontAwesomeIcon icon={faSignOutAlt} className="mr-1" />

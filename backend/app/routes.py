@@ -117,19 +117,14 @@ def update_profile(
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_user)
 ):
-    # Se houver arquivo, salve-o
     if file:
-        # Cria o diretório, se não existir
         directory = "static/profile_images"
         os.makedirs(directory, exist_ok=True)
-        # Define o nome do arquivo
         filename = f"{current_user.id}_{file.filename}"
         file_location = f"{directory}/{filename}"
         with open(file_location, "wb") as f:
             shutil.copyfileobj(file.file, f)
-        # Use uma variável de ambiente para a URL base do backend ou defina um padrão
-        backend_url = os.getenv("BACKEND_URL", "http://91.108.124.55:8000")
-        # Armazene a URL completa para acessar a imagem
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
         current_user.profile_image = f"{backend_url}/static/profile_images/{filename}"
     if username:
         current_user.username = username
