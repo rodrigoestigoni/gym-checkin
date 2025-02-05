@@ -1,4 +1,3 @@
-// App.jsx
 import React, { useState, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import Header from "./components/Header";
@@ -14,14 +13,27 @@ import Profile from "./components/Profile";
 import PrivateRoute from "./components/PrivateRoute";
 
 const App = () => {
-  const [user, setUser] = useState(null);
+  // Inicialize "user" como undefined para indicar que ainda não foi carregado.
+  const [user, setUser] = useState(undefined);
 
   useEffect(() => {
+    // Tente recuperar o usuário do localStorage.
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       setUser(JSON.parse(storedUser));
+    } else {
+      setUser(null);
     }
   }, []);
+
+  // Enquanto o usuário estiver indefinido, exiba um carregamento.
+  if (user === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-xl">Carregando...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
