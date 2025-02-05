@@ -57,7 +57,9 @@ const RankingWeekly = () => {
           {position}º
         </div>
         <div className="text-sm">{user.username}</div>
-        <div className="text-sm text-gray-500">Treinos: {user.weekly_score || 0}</div>
+        <div className="text-sm text-gray-500">
+        Treinos: {user.weekly_score || 0} (Proj: {user.calculated_points || 0})
+        </div>
       </div>
     );
   };
