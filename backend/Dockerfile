@@ -11,7 +11,7 @@ RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # Copia todo o código da aplicação
-COPY app/ ./ 
+COPY . ./
 
 EXPOSE 8000
 
