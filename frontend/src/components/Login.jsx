@@ -22,7 +22,12 @@ const Login = ({ setUser }) => {
       });
       if (res.ok) {
         const data = await res.json();
-        setUser({ username, token: data.access_token });
+        setUser({
+            id: data.user.id,
+            username: data.user.username,
+            status: data.user.status,
+            token: data.access_token,
+          });
         navigate("/dashboard");
       } else {
         setErro("Credenciais incorretas!");

@@ -18,6 +18,9 @@ class User(UserBase):
     class Config:
         orm_mode = True
 
+class LoginResponse(Token):
+    user: User
+
 class Token(BaseModel):
     access_token: str
     token_type: str
