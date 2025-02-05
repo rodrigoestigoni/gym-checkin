@@ -12,6 +12,7 @@ class User(Base):
     status = Column(String, default="normal")
     points = Column(Integer, default=0)
     profile_image = Column(String, nullable=True)  # Armazena o caminho ou URL da imagem
+    weeks_won = Column(Integer, default=0)  # NOVO: total de semanas vencidas
 
 class CheckIn(Base):
     __tablename__ = "checkins"
@@ -20,3 +21,10 @@ class CheckIn(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     duration = Column(Float, nullable=True)  # duração do treino em minutos
     description = Column(Text, nullable=True)
+
+class WeeklyUpdate(Base):
+    __tablename__ = "weekly_updates"
+    id = Column(Integer, primary_key=True, index=True)
+    week_start = Column(DateTime, nullable=False)
+    week_end = Column(DateTime, nullable=False)
+    processed_at = Column(DateTime, server_default=func.now())

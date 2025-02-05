@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
 import os
 import shutil
-from . import schemas, crud, auth, database
+
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from datetime import datetime, timedelta
+from . import schemas, crud, auth, database, models
+from .config import MIN_TRAINING_DAYS
+from . import models
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+
 
 router = APIRouter()
 
@@ -131,3 +136,89 @@ def update_profile(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+@router.get("/ranking/weekly")
+def weekly_ranking(db: Session = Depends(get_db)):
+    # Determina a última semana completa.
+    # Supondo que a semana seja de domingo a sábado.
+    today = datetime.utcnow().date()
+    # Em Python, weekday(): Monday=0, ..., Sunday=6.
+    # Para obter a última semana completa, vamos considerar:
+    #   - Se hoje é domingo (6), a semana passada foi de domingo a sábado.
+    #   - Caso contrário, encontre o último sábado.
+    if today.weekday() == 6:
+        last_saturday = today - timedelta(days=1)
+    else:
+        last_saturday = today - timedelta(days=today.weekday() + 2)
+    last_sunday = last_saturday - timedelta(days=6)
+    start_dt = datetime.combine(last_sunday, datetime.min.time())
+    end_dt = datetime.combine(last_saturday, datetime.max.time())
+
+    # Verifica se essa semana já foi processada
+    weekly_record = db.query(models.WeeklyUpdate).filter(
+        models.WeeklyUpdate.week_start == start_dt,
+        models.WeeklyUpdate.week_end == end_dt
+    ).first()
+
+    if not weekly_record:
+        # Se ainda não processada, consulta os checkins da última semana.
+        weekly_data = db.query(models.CheckIn.user_id, func.count(models.CheckIn.id).label("count")).filter(
+            models.CheckIn.timestamp >= start_dt,
+            models.CheckIn.timestamp <= end_dt
+        ).group_by(models.CheckIn.user_id).all()
+
+        # Cria um dicionário {user_id: count} para usuários que atingiram o mínimo
+        weekly_scores = { user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS }
+
+        # Atualiza o campo weeks_won para cada usuário que atingiu o mínimo
+        if weekly_scores:
+            users_to_update = db.query(models.User).filter(models.User.id.in_(list(weekly_scores.keys()))).all()
+            for user_obj in users_to_update:
+                # Incrementa weeks_won em 1 para cada usuário elegível
+                user_obj.weeks_won += 1
+            db.commit()
+
+        # Registra que essa semana foi processada
+        new_update = models.WeeklyUpdate(week_start=start_dt, week_end=end_dt)
+        db.add(new_update)
+        db.commit()
+
+    # para o podium, vamos considerar os checkins da última semana
+    weekly_data = db.query(models.CheckIn.user_id, func.count(models.CheckIn.id).label("count")).filter(
+        models.CheckIn.timestamp >= start_dt,
+        models.CheckIn.timestamp <= end_dt
+    ).group_by(models.CheckIn.user_id).all()
+    weekly_scores = { user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS }
+    
+    eligible_users = []
+    if weekly_scores:
+        eligible_users = db.query(models.User).filter(models.User.id.in_(list(weekly_scores.keys()))).all()
+    # Anexa o atributo "weekly_score" para ordenação
+    for user_obj in eligible_users:
+        user_obj.weekly_score = weekly_scores.get(user_obj.id, 0)
+    
+    podium_users = sorted(eligible_users, key=lambda u: u.weekly_score, reverse=True)[:3]
+    podium_data = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "profile_image": u.profile_image,
+            "points": u.points,
+            "weekly_score": u.weekly_score,
+        }
+        for u in podium_users
+    ]
+    
+    # Resumo geral: retorna todos os usuários ordenados por weeks_won (descendente)
+    summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
+    summary_data = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "profile_image": u.profile_image,
+            "weeks_won": u.weeks_won,
+        }
+        for u in summary_users
+    ]
+    
+    return {"podium": podium_data, "summary": summary_data}

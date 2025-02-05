@@ -10,6 +10,7 @@ import History from './components/History';
 import Ranking from './components/Ranking';
 import AdminPanel from './components/AdminPanel';
 import Profile from './components/Profile';
+import RankingWeekly from "./components/RankingWeekly";
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -32,6 +33,7 @@ const App = () => {
           <Route path="/dashboard" element={<Dashboard user={user} />} />
           <Route path="/history" element={<History user={user} />} />
           <Route path="/ranking" element={<Ranking />} />
+          <Route path="/ranking-weekly" element={<RankingWeekly />} />
           <Route path="/admin" element={<AdminPanel user={user} />} />
           <Route path="/profile" element={<Profile user={user} setUser={setUser} />} />
           <Route path="/" element={<Dashboard user={user} />} />
