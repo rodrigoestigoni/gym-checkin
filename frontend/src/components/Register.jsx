@@ -9,6 +9,8 @@ const Register = () => {
   const [msg, setMsg] = useState("");
   const navigate = useNavigate();
 
+  const API_URL = process.env.REACT_APP_API_URL;
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
@@ -22,7 +24,7 @@ const Register = () => {
     const payload = { username, password, is_admin: false };
 
     try {
-      const response = await fetch("http://<IP_DA_SUA_API>:8000/register/", {
+      const response = await fetch("http://${API_URL}:8000/register/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
