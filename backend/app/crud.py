@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime, timedelta
 from . import models, schemas, config
 
@@ -10,7 +11,7 @@ def create_user(db: Session, user: schemas.UserCreate, hashed_password: str):
     return db_user
 
 def get_user_by_username(db: Session, username: str):
-    return db.query(models.User).filter(models.User.username == username).first()
+    return db.query(models.User).filter(func.lower(models.User.username) == username.lower()).first()
 
 def create_checkin(db: Session, checkin: schemas.CheckInCreate):
     db_checkin = models.CheckIn(**checkin.dict())

@@ -51,6 +51,7 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_username(db, user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Usuário já existe")
+    user.username = user.username.lower()
     hashed_password = auth.get_password_hash(user.password)
     return crud.create_user(db, user, hashed_password)
 
@@ -168,7 +169,7 @@ def weekly_ranking(db: Session = Depends(get_db)):
         ).group_by(models.CheckIn.user_id).all()
 
         # Cria um dicionário {user_id: count} para usuários que atingiram o mínimo
-        weekly_scores = { user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS }
+        weekly_scores = { user_id: count for user_id, count in weekly_data }
 
         # Atualiza o campo weeks_won para cada usuário que atingiu o mínimo
         if weekly_scores:
