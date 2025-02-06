@@ -18,6 +18,10 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Shape 2025")
 app.add_middleware(LoggingMiddleware)
 
+static_dir = os.path.join(os.getcwd(), "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(

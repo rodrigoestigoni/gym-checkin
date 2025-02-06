@@ -36,13 +36,17 @@ class Challenge(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     description = Column(Text, nullable=True)
-    modality = Column(String, index=True)  # Ex.: "academia", "corrida", "calorias", etc.
-    target = Column(Integer)  # Meta do desafio (ex.: 18 treinos, 50 km, etc.)
-    duration_days = Column(Integer)  # Duração do desafio em dias, ex.: 30
+    modality = Column(String, index=True)  # ex.: "academia", "corrida", "calorias", "passos", "artes marciais", "personalizado"
+    target = Column(Integer)               # meta, ex.: 18 (treinos, km, etc.)
     start_date = Column(DateTime, default=func.now())
     end_date = Column(DateTime)
+    duration_days = Column(Integer)        # calculado ou informado
+    rules = Column(Text, default="Aqui você pode definir algumas regras, como um castigo para quem perder, um prêmio para quem ganhar")
     created_by = Column(Integer, ForeignKey("users.id"))
+    private = Column(Boolean, default=True)  # se true, somente usuários convidados podem participar
     creator = relationship("User", back_populates="created_challenges")
+    # Relacionamento com participantes
+    participants = relationship("ChallengeParticipant", back_populates="challenge")
 
 class ChallengeParticipant(Base):
     __tablename__ = "challenge_participants"
@@ -50,7 +54,8 @@ class ChallengeParticipant(Base):
     challenge_id = Column(Integer, ForeignKey("challenges.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     joined_at = Column(DateTime, default=func.now())
-    progress = Column(Integer, default=0)  # Pode representar treinos realizados, km percorridos, etc.
-    submission_image = Column(String, nullable=True)  # URL da imagem enviada pelo usuário (após processamento)
-    challenge = relationship("Challenge", backref="participants")
+    progress = Column(Integer, default=0)           # por exemplo, número de treinos, km, etc.
+    submission_image = Column(String, nullable=True)  # URL da foto enviada (se houver)
+    approved = Column(Boolean, default=False)         # o criador precisa aprovar o participante
+    challenge = relationship("Challenge", back_populates="participants")
     user = relationship("User", backref="challenge_participations")

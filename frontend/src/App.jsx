@@ -12,10 +12,7 @@ import AdminPanel from "./components/AdminPanel";
 import Profile from "./components/Profile";
 import PrivateRoute from "./components/PrivateRoute";
 import RankingTabs from "./components/RankingTabs";
-import ChallengeList from "./components/ChallengeList";
-import ChallengeDetail from "./components/ChallengeDetail";
-import ChallengeCreate from "./components/ChallengeCreate";
-import ChallengeRanking from "./components/ChallengeRanking";
+import ChallengesTabs from "./components/ChallengesTabs";
 
 const App = () => {
   // Inicialize "user" como undefined para indicar que ainda não foi carregado.
@@ -114,10 +111,8 @@ const App = () => {
               </PrivateRoute>
             }
           />
-          <Route path="/challenges" element={<ChallengeList />} />
-          <Route path="/challenges/create" element={<PrivateRoute user={user}><ChallengeCreate user={user} /></PrivateRoute>} />
-          <Route path="/challenges/:challengeId" element={<PrivateRoute user={user}><ChallengeDetail user={user} /></PrivateRoute>} />
-          <Route path="/challenges/:challengeId/ranking" element={<PrivateRoute user={user}><ChallengeRanking /></PrivateRoute>} />
+          <Route path="/challenges/*" element={<PrivateRoute user={user}><ChallengesTabs user={user} /></PrivateRoute>} />
+          
         </Routes>
       </div>
     </div>
