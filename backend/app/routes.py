@@ -175,16 +175,16 @@ def weekly_ranking(db: Session = Depends(get_db)):
         models.CheckIn.timestamp >= start_dt,
         models.CheckIn.timestamp <= end_dt
     ).group_by(models.CheckIn.user_id).all()
-    
+
     # Cria um dicionário com a contagem real de checkins (sem filtro)
     display_scores = {user_id: count for user_id, count in weekly_data}
-    
+
     # Função para calcular os pontos projetados com base no número de checkins
     def calculate_points(count):
         if count < MIN_TRAINING_DAYS:
             return 0
         return 10 + 3 * (count - MIN_TRAINING_DAYS)
-    
+
     # Para atualização de pontos no banco (somente se a semana estiver completa)
     if week_closed:
         weekly_record = db.query(models.WeeklyUpdate).filter(
@@ -218,50 +218,46 @@ def weekly_ranking(db: Session = Depends(get_db)):
         ).all()
     else:
         display_users = []
-    
-    # Anexa a cada usuário o campo "weekly_score" e "calculated_points"
+
+    # Construa uma lista de dicionários com os dados dos usuários e os campos extras
+    users_data = []
     for user_obj in display_users:
         count = display_scores.get(user_obj.id, 0)
-        user_obj.weekly_score = count
-        user_obj.calculated_points = calculate_points(count)
-    
+        users_data.append({
+            "id": user_obj.id,
+            "username": user_obj.username,
+            "profile_image": user_obj.profile_image,
+            "points": user_obj.points,  # pontos acumulados (atualizados se a semana estiver fechada)
+            "weekly_score": count,
+            "calculated_points": calculate_points(count)
+        })
+
     # Ordena os usuários por weekly_score (decrescente)
-    display_users.sort(key=lambda u: u.weekly_score, reverse=True)
-    
+    users_data.sort(key=lambda u: u["weekly_score"], reverse=True)
+
     # Define o podium como os 3 primeiros (se existirem)
-    podium_users = display_users[:3]
-    podium_data = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "profile_image": u.profile_image,
-            "points": u.points,  # pontos acumulados (atualizados se a semana estiver fechada)
-            "weekly_score": u.weekly_score,
-            "calculated_points": u.calculated_points  # pontos projetados para esta semana
-        }
-        for u in podium_users
-    ]
-    
-    # Para o resumo geral, mantemos a lógica anterior (usuários ordenados por weeks_won)
+    podium_data = users_data[:3]
+
+    # Para o resumo geral: podemos criar uma lista com os dados dos usuários do ranking geral
     summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
     summary_data = [
         {
             "id": u.id,
             "username": u.username,
             "profile_image": u.profile_image,
-            "points": u.points,  # pontos acumulados (atualizados se a semana estiver fechada)
-            "weekly_score": u.weekly_score,
+            "points": u.points,
+            "weekly_score": display_scores.get(u.id, 0),
             "weeks_won": u.weeks_won,
         }
         for u in summary_users
     ]
-    
-    # Retorne também o dicionário display_scores para depuração, se desejar.
+
     return {
         "podium": podium_data,
         "summary": summary_data,
         "weekly": list(display_scores.items())
     }
+
 
 
 
