@@ -17,6 +17,13 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Shape 2025")
 app.add_middleware(LoggingMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost", "http://ultimoingresso.com.br"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 static_dir = os.path.join(os.getcwd(), "static")
 if not os.path.exists(static_dir):

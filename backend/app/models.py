@@ -1,4 +1,5 @@
-# models.py
+import random
+import string
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -31,21 +32,24 @@ class WeeklyUpdate(Base):
     week_end = Column(DateTime, nullable=False)
     processed_at = Column(DateTime, server_default=func.now())
 
+def generate_challenge_code(length=6):
+    return ''.join(random.choices(string.ascii_uppercase, k=length))
+
 class Challenge(Base):
     __tablename__ = "challenges"
     id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True, default=lambda: generate_challenge_code(6))
     title = Column(String, index=True)
     description = Column(Text, nullable=True)
-    modality = Column(String, index=True)  # ex.: "academia", "corrida", "calorias", "passos", "artes marciais", "personalizado"
-    target = Column(Integer)               # meta, ex.: 18 (treinos, km, etc.)
-    start_date = Column(DateTime, default=func.now())
-    end_date = Column(DateTime)
-    duration_days = Column(Integer)        # calculado ou informado
-    rules = Column(Text, default="Aqui você pode definir algumas regras, como um castigo para quem perder, um prêmio para quem ganhar")
+    modality = Column(String, index=True)  # "academia", "corrida", "calorias", "passos", "artes marciais", "personalizado", etc.
+    target = Column(Integer)              # Meta numérica (ex.: 18 treinos, 50 km, etc.)
+    start_date = Column(DateTime, nullable=False)  # Data de início
+    duration_days = Column(Integer, nullable=False) # Quantidade de dias do desafio
+    end_date = Column(DateTime, nullable=False)      # Data de término
+    bet = Column(Text, default="Aqui você pode definir algumas regras, como um castigo para quem perder, um prêmio para quem ganhar")
+    private = Column(Boolean, default=True)          # Se o desafio é privado (apenas participantes convidados)
     created_by = Column(Integer, ForeignKey("users.id"))
-    private = Column(Boolean, default=True)  # se true, somente usuários convidados podem participar
     creator = relationship("User", back_populates="created_challenges")
-    # Relacionamento com participantes
     participants = relationship("ChallengeParticipant", back_populates="challenge")
 
 class ChallengeParticipant(Base):
@@ -54,8 +58,8 @@ class ChallengeParticipant(Base):
     challenge_id = Column(Integer, ForeignKey("challenges.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     joined_at = Column(DateTime, default=func.now())
-    progress = Column(Integer, default=0)           # por exemplo, número de treinos, km, etc.
-    submission_image = Column(String, nullable=True)  # URL da foto enviada (se houver)
-    approved = Column(Boolean, default=False)         # o criador precisa aprovar o participante
+    progress = Column(Integer, default=0)  # Progresso (ex.: número de treinos, km, etc.)
+    submission_image = Column(String, nullable=True)
+    approved = Column(Boolean, default=False)
     challenge = relationship("Challenge", back_populates="participants")
     user = relationship("User", backref="challenge_participations")

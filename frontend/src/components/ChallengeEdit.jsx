@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
-const ChallengeCreate = ({ user }) => {
+const ChallengeEdit = ({ user }) => {
+  const { challengeId } = useParams();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [modality, setModality] = useState("academia");
@@ -12,17 +13,36 @@ const ChallengeCreate = ({ user }) => {
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const navigate = useNavigate();
 
-  // Se startDate e durationDays mudarem, atualiza endDate
+  useEffect(() => {
+    fetch(`${API_URL}/challenges/${challengeId}`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${user.token}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setTitle(data.title);
+        setDescription(data.description);
+        setModality(data.modality);
+        setTarget(data.target);
+        setStartDate(data.start_date.split("T")[0]);
+        setDurationDays(data.duration_days);
+        setEndDate(data.end_date.split("T")[0]);
+      })
+      .catch((err) => console.error(err));
+  }, [API_URL, challengeId, user.token]);
+
+  // Atualiza endDate se startDate e durationDays mudarem
   useEffect(() => {
     if (startDate && durationDays) {
       const start = new Date(startDate);
-      // Subtrai 1 porque se for 30 dias, o desafio vai do dia 1 ao dia 30
-      const calculatedEnd = new Date(start.getTime() + (durationDays - 1) * 24 * 60 * 60 * 1000);
-      setEndDate(calculatedEnd.toISOString().split("T")[0]);
+      const calcEnd = new Date(start.getTime() + (durationDays - 1) * 24 * 60 * 60 * 1000);
+      setEndDate(calcEnd.toISOString().split("T")[0]);
     }
   }, [startDate, durationDays]);
 
-  // Se startDate e endDate mudarem, recalcula a duração
+  // Atualiza durationDays se startDate e endDate mudarem
   useEffect(() => {
     if (startDate && endDate) {
       const start = new Date(startDate);
@@ -34,10 +54,6 @@ const ChallengeCreate = ({ user }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!user) {
-      navigate("/login");
-      return;
-    }
     const payload = {
       title,
       description,
@@ -48,8 +64,8 @@ const ChallengeCreate = ({ user }) => {
       end_date: new Date(endDate).toISOString(),
     };
     try {
-      const res = await fetch(`${API_URL}/challenges/`, {
-        method: "POST",
+      const res = await fetch(`${API_URL}/challenges/${challengeId}`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${user.token}`,
@@ -57,22 +73,22 @@ const ChallengeCreate = ({ user }) => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        alert("Desafio criado com sucesso!");
-        navigate("/challenges");
+        alert("Desafio atualizado com sucesso!");
+        navigate(`/challenges/${challengeId}`);
       } else {
-        const errorData = await res.json();
-        console.error("Erro ao criar desafio:", errorData);
-        alert("Erro ao criar desafio.");
+        const errData = await res.json();
+        console.error("Erro ao atualizar desafio:", errData);
+        alert("Erro ao atualizar desafio.");
       }
     } catch (error) {
       console.error(error);
-      alert("Erro na criação do desafio.");
+      alert("Erro na atualização do desafio.");
     }
   };
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Criar Desafio</h1>
+    <div className="max-w-md mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Editar Desafio</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-gray-700">Título:</label>
@@ -108,7 +124,7 @@ const ChallengeCreate = ({ user }) => {
           </select>
         </div>
         <div>
-          <label className="block text-gray-700">Meta (quantidade):</label>
+          <label className="block text-gray-700">Meta:</label>
           <input
             type="number"
             value={target}
@@ -151,11 +167,11 @@ const ChallengeCreate = ({ user }) => {
           type="submit"
           className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600"
         >
-          Criar Desafio
+          Atualizar Desafio
         </button>
       </form>
     </div>
   );
 };
 
-export default ChallengeCreate;
+export default ChallengeEdit;

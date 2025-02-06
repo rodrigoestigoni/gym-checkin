@@ -1,4 +1,3 @@
-// ChallengeRanking.jsx
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -8,11 +7,25 @@ const ChallengeRanking = () => {
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
-    fetch(`${API_URL}/challenges/${challengeId}/ranking`)
-      .then((res) => res.json())
+    if (!challengeId) return;
+    fetch(`${API_URL}/challenges/${challengeId}/ranking`, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          throw new Error("Não autenticado");
+        }
+        return res.json();
+      })
       .then((data) => setParticipants(data))
       .catch((err) => console.error(err));
   }, [API_URL, challengeId]);
+
+  if (!challengeId) {
+    return <div>Desafio não selecionado.</div>;
+  }
 
   return (
     <div className="p-4 max-w-4xl mx-auto">

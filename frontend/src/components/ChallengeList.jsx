@@ -1,16 +1,25 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import Modal from "./Modal";
+import ChallengeDetailModal from "./ChallengeDetailModal";
 
-const ChallengeList = () => {
+const ChallengeList = ({ user }) => {
   const [challenges, setChallenges] = useState([]);
+  const [selectedChallengeId, setSelectedChallengeId] = useState(null);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
-    fetch(`${API_URL}/challenges/`)
-      .then((res) => res.json())
-      .then(setChallenges)
-      .catch((err) => console.error(err));
-  }, [API_URL]);
+    if (user && user.token) {
+      fetch(`${API_URL}/challenges/`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+      })
+        .then((res) => res.json())
+        .then(setChallenges)
+        .catch((err) => console.error("Erro ao carregar desafios:", err));
+    }
+  }, [API_URL, user]);
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
@@ -18,7 +27,9 @@ const ChallengeList = () => {
       <ul className="space-y-4">
         {challenges.map((challenge) => (
           <li key={challenge.id} className="border p-4 rounded">
-            <h2 className="text-xl font-bold">{challenge.title}</h2>
+            <h2 className="text-xl font-bold">
+              {challenge.title} <span className="text-sm text-gray-500">(ID: {challenge.code})</span>
+            </h2>
             <p>{challenge.description}</p>
             <p>
               Modalidade: <strong>{challenge.modality}</strong> | Meta:{" "}
@@ -29,15 +40,28 @@ const ChallengeList = () => {
               Período: {new Date(challenge.start_date).toLocaleDateString()} -{" "}
               {new Date(challenge.end_date).toLocaleDateString()}
             </p>
-            <Link
-              to={`/challenges/${challenge.id}`}
+            <button
+              onClick={() => setSelectedChallengeId(challenge.id)}
               className="text-blue-500 hover:underline"
             >
               Ver Detalhes
-            </Link>
+            </button>
           </li>
         ))}
       </ul>
+      {selectedChallengeId && (
+        <Modal isOpen={true} onClose={() => setSelectedChallengeId(null)}>
+          <ChallengeDetailModal 
+            challengeId={selectedChallengeId} 
+            user={user} 
+            onClose={() => setSelectedChallengeId(null)}
+            onDeleteSuccess={() => {
+              // Após exclusão, atualize a lista:
+              setChallenges(challenges.filter(ch => ch.id !== selectedChallengeId));
+            }}
+          />
+        </Modal>
+      )}
     </div>
   );
 };

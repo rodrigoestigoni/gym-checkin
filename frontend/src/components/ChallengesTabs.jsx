@@ -1,14 +1,14 @@
-// ChallengesTabs.jsx
 import React, { useState } from "react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faPlusCircle, faTrophy, faUserCheck } from '@fortawesome/free-solid-svg-icons';
+import { faEye, faPlusCircle, faTrophy, faUserCheck, faSearch } from '@fortawesome/free-solid-svg-icons';
 import ChallengeList from "./ChallengeList";
 import ChallengeCreate from "./ChallengeCreate";
 import ChallengeRanking from "./ChallengeRanking";
-import ChallengeInvitations from "./ChallengeInvitations"; // para aprovar participantes
+import ChallengeInvitations from "./ChallengeInvitations";
+import ChallengeInvite from "./ChallengeInvite";
 
 const ChallengesTabs = ({ user }) => {
-  const [activeTab, setActiveTab] = useState("list"); // 'list', 'create', 'ranking', 'invitations'
+  const [activeTab, setActiveTab] = useState("list"); // 'list', 'create', 'ranking', 'invite', 'invitations'
 
   return (
     <div className="container mx-auto p-4">
@@ -36,6 +36,13 @@ const ChallengesTabs = ({ user }) => {
           Ranking
         </button>
         <button
+          className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${activeTab === "invite" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"}`}
+          onClick={() => setActiveTab("invite")}
+        >
+          <FontAwesomeIcon icon={faSearch} className="mr-2" />
+          Buscar
+        </button>
+        <button
           className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${activeTab === "invitations" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"}`}
           onClick={() => setActiveTab("invitations")}
         >
@@ -44,9 +51,10 @@ const ChallengesTabs = ({ user }) => {
         </button>
       </div>
       <div>
-        {activeTab === "list" && <ChallengeList />}
+        {activeTab === "list" && <ChallengeList user={user} />}
         {activeTab === "create" && <ChallengeCreate user={user} />}
-        {activeTab === "ranking" && <ChallengeRanking />}
+        {activeTab === "ranking" && <ChallengeRanking />} {/* Certifique-se de passar o challengeId via nested routes, se necessário */}
+        {activeTab === "invite" && <ChallengeInvite user={user} />}
         {activeTab === "invitations" && <ChallengeInvitations user={user} />}
       </div>
     </div>

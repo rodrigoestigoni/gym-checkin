@@ -59,19 +59,18 @@ class ChallengeBase(BaseModel):
     description: Optional[str] = None
     modality: str
     target: int
-    # Em vez de pedir duração e data de fim separadamente, podemos definir:
-    # Se o usuário informar a duração (em dias) ou a data final, um dos dois será calculado.
-    duration_days: Optional[int] = None  
-    end_date: Optional[datetime] = None  
-    rules: Optional[str] = "Aqui você pode definir algumas regras, como um castigo para quem perder, um prêmio para quem ganhar"
+    start_date: datetime
+    duration_days: int
+    end_date: datetime
+    bet: Optional[str] = "Aqui você pode definir algumas regras, como um castigo para quem perder, um prêmio para quem ganhar"
     private: Optional[bool] = True
 
 class ChallengeCreate(ChallengeBase):
-    start_date: datetime  # o criador informa a data de início; a data final ou a duração deve ser informada (pelo menos uma)
+    pass
 
 class Challenge(ChallengeBase):
     id: int
-    start_date: datetime
+    code: str
     created_by: int
 
     class Config:
