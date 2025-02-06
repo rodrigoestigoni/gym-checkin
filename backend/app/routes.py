@@ -249,6 +249,8 @@ def weekly_ranking(db: Session = Depends(get_db)):
             "id": u.id,
             "username": u.username,
             "profile_image": u.profile_image,
+            "points": u.points,  # pontos acumulados (atualizados se a semana estiver fechada)
+            "weekly_score": u.weekly_score,
             "weeks_won": u.weeks_won,
         }
         for u in summary_users
