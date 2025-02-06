@@ -18,7 +18,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Shape 2025")
 app.add_middleware(LoggingMiddleware)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
