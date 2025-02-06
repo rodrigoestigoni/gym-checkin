@@ -43,3 +43,9 @@ out.log
 
 # OS-specific
 Thumbs.db
+
+# Ignorar a database
+backend/app/gymcheckin.db
+
+# Ignorar todas as imagens de perfil
+backend/app/static/profile_images/
