@@ -1,13 +1,11 @@
-import os
-import shutil
-
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
+import os, shutil
 from . import schemas, crud, auth, database, models
 from .config import MIN_TRAINING_DAYS
-from . import models
+
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 
 
@@ -278,3 +276,78 @@ def overall_ranking(db: Session = Depends(get_db)):
         for u in users
     ]
     return {"overall": data}
+
+@router.post("/challenges/", response_model=schemas.Challenge)
+def create_challenge(challenge: schemas.ChallengeCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    # O usuário criador é o usuário logado
+    challenge_data = challenge.dict()
+    challenge_data["created_by"] = current_user.id
+    db_challenge = models.Challenge(**challenge_data)
+    db.add(db_challenge)
+    db.commit()
+    db.refresh(db_challenge)
+    return db_challenge
+
+@router.get("/challenges/", response_model=list[schemas.Challenge])
+def list_challenges(db: Session = Depends(get_db)):
+    return db.query(models.Challenge).all()
+
+@router.get("/challenges/{challenge_id}", response_model=schemas.Challenge)
+def get_challenge(challenge_id: int, db: Session = Depends(get_db)):
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+    return challenge
+
+@router.post("/challenges/{challenge_id}/join", response_model=schemas.ChallengeParticipant)
+def join_challenge(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    existing = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Você já entrou neste desafio")
+    participant = models.ChallengeParticipant(challenge_id=challenge_id, user_id=current_user.id)
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+    return participant
+
+@router.put("/challenges/{challenge_id}/participant", response_model=schemas.ChallengeParticipant)
+def update_challenge_participant(
+    challenge_id: int,
+    progress: int = None,
+    file: UploadFile = File(None),
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    participant = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id
+    ).first()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participação não encontrada")
+    
+    if progress is not None:
+        participant.progress = progress
+
+    if file:
+        directory = "static/challenge_submissions"
+        os.makedirs(directory, exist_ok=True)
+        filename = f"{current_user.id}_{challenge_id}_{file.filename}"
+        file_location = f"{directory}/{filename}"
+        with open(file_location, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
+        participant.submission_image = f"{backend_url}/static/challenge_submissions/{filename}"
+    
+    db.commit()
+    db.refresh(participant)
+    return participant
+
+@router.get("/challenges/{challenge_id}/ranking", response_model=list[schemas.ChallengeParticipant])
+def challenge_ranking(challenge_id: int, db: Session = Depends(get_db)):
+    participants = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id
+    ).order_by(models.ChallengeParticipant.progress.desc()).all()
+    return participants
