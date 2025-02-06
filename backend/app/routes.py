@@ -146,7 +146,7 @@ def update_profile(
         with open(file_location, "wb") as f:
             shutil.copyfileobj(file.file, f)
         backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
-        current_user.profile_image = f"{backend_url}/static/profile_images/{filename}"
+        current_user.profile_image = f"https://ultimoingresso.com.br/api/static/profile_images/{filename}"
     if username:
         current_user.username = username
     db.commit()
