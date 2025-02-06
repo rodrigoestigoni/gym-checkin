@@ -4,7 +4,6 @@ services:
     build: ./backend
     container_name: gym_backend
     ports:
-      - "8000:8000"
       - "8443:8443"
     volumes:
       - ./backend/app:/app
