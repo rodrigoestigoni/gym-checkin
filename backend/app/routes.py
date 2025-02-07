@@ -1,13 +1,11 @@
-import os
-import shutil
-
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta
+import os, shutil
 from . import schemas, crud, auth, database, models
 from .config import MIN_TRAINING_DAYS
-from . import models
+
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 
 
@@ -211,14 +209,13 @@ def weekly_ranking(db: Session = Depends(get_db)):
             db.add(new_update)
             db.commit()
 
-    # Para exibição: buscar os usuários que fizeram checkins na semana
+    # Consulta e definição de display_scores
     if display_scores:
         display_users = db.query(models.User).filter(
             models.User.id.in_(list(display_scores.keys()))
         ).all()
     else:
         display_users = []
-
     # Construa uma lista de dicionários com os dados dos usuários e os campos extras
     users_data = []
     for user_obj in display_users:
@@ -233,12 +230,41 @@ def weekly_ranking(db: Session = Depends(get_db)):
         })
 
     # Ordena os usuários por weekly_score (decrescente)
-    users_data.sort(key=lambda u: u["weekly_score"], reverse=True)
+    display_users.sort(key=lambda u: u.weekly_score, reverse=True)
 
-    # Define o podium como os 3 primeiros (se existirem)
-    podium_data = users_data[:3]
-
-    # Para o resumo geral: podemos criar uma lista com os dados dos usuários do ranking geral
+    # Agrupa os usuários por weekly_score
+    groups = {}
+    for user in display_users:
+        score = user.weekly_score
+        if score not in groups:
+            groups[score] = []
+        groups[score].append(user)
+    
+    # Ordena os scores de forma decrescente
+    sorted_scores = sorted(groups.keys(), reverse=True)
+    
+    # Para cada grupo, atribui o rank (baseado na posição no sorted_scores)
+    podium_data = []
+    others_data = []
+    for i, score in enumerate(sorted_scores):
+        rank = i + 1
+        group_data = [
+            {
+                "id": u.id,
+                "username": u.username,
+                "profile_image": u.profile_image,
+                "points": u.points,
+                "weekly_score": u.weekly_score,
+                "calculated_points": u.calculated_points,
+                "rank": rank
+            }
+            for u in groups[score]
+        ]
+        if rank <= 3:
+            podium_data.extend(group_data)
+        else:
+            others_data.extend(group_data)
+    
     summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
     summary_data = [
         {
@@ -251,9 +277,9 @@ def weekly_ranking(db: Session = Depends(get_db)):
         }
         for u in summary_users
     ]
-
     return {
         "podium": podium_data,
+        "others": others_data,
         "summary": summary_data,
         "weekly": list(display_scores.items())
     }
@@ -276,3 +302,225 @@ def overall_ranking(db: Session = Depends(get_db)):
         for u in users
     ]
     return {"overall": data}
+
+
+@router.post("/challenges/", response_model=schemas.Challenge)
+def create_challenge(challenge: schemas.ChallengeCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    data = challenge.dict()
+    data["created_by"] = current_user.id
+    # Se o usuário informou start_date e duration_days mas não end_date, calcule end_date:
+    if data.get("start_date") and data.get("duration_days") and not data.get("end_date"):
+        data["end_date"] = data["start_date"] + timedelta(days=data["duration_days"] - 1)
+    # Se informou start_date e end_date mas não duration_days, calcule a duração:
+    if data.get("start_date") and data.get("end_date") and not data.get("duration_days"):
+        data["duration_days"] = (data["end_date"].date() - data["start_date"].date()).days + 1
+    db_challenge = models.Challenge(**data)
+    db.add(db_challenge)
+    db.commit()
+    db.refresh(db_challenge)
+    return db_challenge
+
+
+@router.get("/challenges/{challenge_id}/participants/count")
+def count_participants(challenge_id: int, db: Session = Depends(get_db)):
+    count = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id
+    ).count()
+    return {"count": count}
+
+
+@router.get("/challenges/", response_model=list[schemas.Challenge])
+def list_challenges(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    # Se o desafio for privado, somente o criador ou os convidados podem ver.
+    # Aqui, por exemplo, retornamos apenas os desafios criados pelo usuário.
+    return db.query(models.Challenge).filter(models.Challenge.created_by == current_user.id).all()
+
+@router.get("/challenges/{challenge_id}", response_model=schemas.Challenge)
+def get_challenge(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+    # Opcional: verificar se o usuário tem permissão para ver este desafio.
+    return challenge
+
+@router.put("/challenges/{challenge_id}", response_model=schemas.Challenge)
+def update_challenge(challenge_id: int, challenge: schemas.ChallengeCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    db_challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not db_challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+    if db_challenge.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Apenas o criador pode editar o desafio")
+    if db_challenge.start_date <= datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Desafio já iniciado não pode ser editado")
+    data = challenge.dict()
+    if data.get("start_date") and data.get("duration_days") and not data.get("end_date"):
+        data["end_date"] = data["start_date"] + timedelta(days=data["duration_days"] - 1)
+    if data.get("start_date") and data.get("end_date") and not data.get("duration_days"):
+        data["duration_days"] = (data["end_date"].date() - data["start_date"].date()).days + 1
+    for key, value in data.items():
+        setattr(db_challenge, key, value)
+    db.commit()
+    db.refresh(db_challenge)
+    return db_challenge
+
+
+@router.delete("/challenges/{challenge_id}")
+def delete_challenge(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+    if challenge.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    if challenge.start_date <= datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Desafio já iniciado não pode ser excluído")
+    db.delete(challenge)
+    db.commit()
+    return {"detail": "Desafio excluído com sucesso"}
+
+
+@router.get("/challenges/{challenge_id}/participants", response_model=list[schemas.ChallengeParticipantResponse])
+def get_challenge_participants(challenge_id: int, db: Session = Depends(get_db)):
+    # Carrega os registros de participação aprovados, incluindo o usuário
+    participants = db.query(models.ChallengeParticipant)\
+        .options(joinedload(models.ChallengeParticipant.user))\
+        .filter(
+            models.ChallengeParticipant.challenge_id == challenge_id,
+            models.ChallengeParticipant.approved == True
+        ).all()
+    return participants
+
+
+
+@router.post("/challenges/{challenge_id}/join", response_model=schemas.ChallengeParticipant)
+def join_challenge(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    existing = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id
+    ).first()
+    if existing:
+        return existing  # Retorna o registro existente para que o frontend exiba “Aguardando aprovação”
+    participant = models.ChallengeParticipant(challenge_id=challenge_id, user_id=current_user.id)
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+    return participant
+
+
+@router.get("/challenges/{challenge_id}/pending", response_model=list[schemas.ChallengeParticipant])
+def list_pending_participants(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge or challenge.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    pending = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.approved == False
+    ).all()
+    return pending
+
+@router.post("/challenges/{challenge_id}/approve", response_model=schemas.ChallengeParticipant)
+def approve_participant(challenge_id: int, participant_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge or challenge.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    participant = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.id == participant_id,
+        models.ChallengeParticipant.challenge_id == challenge_id
+    ).first()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participação não encontrada")
+    participant.approved = True
+    db.commit()
+    db.refresh(participant)
+    return participant
+
+@router.get("/challenges/{challenge_id}/ranking", response_model=list[schemas.ChallengeParticipant])
+def challenge_ranking(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    # Retorna os participantes aprovados ordenados por progress (descendente)
+    participants = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.approved == True
+    ).order_by(models.ChallengeParticipant.progress.desc()).all()
+    return participants
+
+@router.get("/challenges/invite/{code}", response_model=schemas.Challenge)
+def get_challenge_by_code(code: str, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    challenge = db.query(models.Challenge).filter(models.Challenge.code == code).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+    return challenge
+
+@router.get("/challenges/{challenge_id}/participant-status", response_model=schemas.ChallengeParticipant)
+def participant_status(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    participant = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id
+    ).first()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participação não encontrada")
+    return participant
+
+
+@router.get("/challenge-participation/", response_model=list[schemas.ChallengeParticipationResponse])
+def get_participated_challenges(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    participation = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.user_id == current_user.id
+    ).all()
+    challenge_ids = [p.challenge_id for p in participation]
+    challenges = db.query(models.Challenge).options(joinedload(models.Challenge.creator)).filter(
+        models.Challenge.id.in_(challenge_ids)
+    ).all()
+    challenge_dict = {c.id: c for c in challenges}
+    response = []
+    for p in participation:
+        ch = challenge_dict.get(p.challenge_id)
+        if ch:
+            response.append({"challenge": ch, "participant": p})
+    return response
+
+
+@router.delete("/challenge-participants/{participant_id}", status_code=204)
+def delete_challenge_participant(
+    participant_id: int, 
+    db: Session = Depends(get_db), 
+    current_user: schemas.User = Depends(get_current_user)
+):
+    participant = db.query(models.ChallengeParticipant).filter(models.ChallengeParticipant.id == participant_id).first()
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participação não encontrada")
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == participant.challenge_id).first()
+    # Permitir que o participante cancele OU que o criador remova o participante
+    if not (participant.user_id == current_user.id or challenge.created_by == current_user.id):
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    db.delete(participant)
+    db.commit()
+    return {"detail": "Participação removida com sucesso"}
+
+
+@router.get("/challenge-invitations/", response_model=list[schemas.ChallengeParticipationResponse])
+def all_challenge_invitations(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    created_challenges = db.query(models.Challenge).options(joinedload(models.Challenge.creator)).filter(
+        models.Challenge.created_by == current_user.id
+    ).all()
+    created_ids = [c.id for c in created_challenges]
+    pending = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id.in_(created_ids),
+        models.ChallengeParticipant.approved == False
+    ).all()
+    challenge_dict = {c.id: c for c in created_challenges}
+    response = []
+    for p in pending:
+        ch = challenge_dict.get(p.challenge_id)
+        if ch:
+            response.append({"challenge": ch, "participant": p})
+    return response
+
+# Endpoint para remover um checkin
+@router.delete("/checkins/{checkin_id}", status_code=204)
+def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    checkin = crud.get_checkin(db, checkin_id)
+    if not checkin:
+        raise HTTPException(status_code=404, detail="Checkin não encontrado")
+    if checkin.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    crud.delete_checkin(db, checkin)
+    return

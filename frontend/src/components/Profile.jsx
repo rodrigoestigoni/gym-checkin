@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import DarkModeToggle from "./DarkModeToggle"; 
 
 const Profile = ({ user, setUser }) => {
   const [username, setUsername] = useState(user.username);
@@ -72,6 +73,9 @@ const Profile = ({ user, setUser }) => {
           Atualizar Perfil
         </button>
       </form>
+      <div className="mt-4 flex justify-center">
+        <DarkModeToggle />
+      </div>
     </div>
   );
 };

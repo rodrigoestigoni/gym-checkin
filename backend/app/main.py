@@ -22,10 +22,16 @@ app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost", "http://ultimoingresso.com.br"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+static_dir = os.path.join(os.getcwd(), "static")
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(routes.router)
