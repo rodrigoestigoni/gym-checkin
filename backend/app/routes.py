@@ -220,6 +220,8 @@ def weekly_ranking(db: Session = Depends(get_db)):
     users_data = []
     for user_obj in display_users:
         count = display_scores.get(user_obj.id, 0)
+        user_obj.weekly_score = count
+        user_obj.calculated_points = calculate_points(count)
         users_data.append({
             "id": user_obj.id,
             "username": user_obj.username,
