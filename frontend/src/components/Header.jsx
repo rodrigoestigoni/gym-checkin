@@ -98,6 +98,9 @@ const Header = ({ user, setUser }) => {
                 <li>
                   <Link onClick={() => setMenuOpen(false)} to="/ranking" className="block hover:text-green-500">Ranking</Link>
                 </li>
+                <li>
+                  <Link onClick={() => setMenuOpen(false)} to="/challenges" className="block hover:text-green-500">Desafios</Link>
+                </li>
                 {user.is_admin && (
                   <li>
                     <Link onClick={() => setMenuOpen(false)} to="/admin" className="block hover:text-green-500">
