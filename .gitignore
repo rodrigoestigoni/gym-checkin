@@ -49,3 +49,6 @@ backend/app/gymcheckin.db
 
 # Ignorar todas as imagens de perfil
 backend/app/static/profile_images/
+
+# Ignora as informações do certbot
+certbot/

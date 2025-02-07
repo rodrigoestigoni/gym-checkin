@@ -13,6 +13,6 @@ RUN pip install -r requirements.txt
 # Copia todo o código da aplicação
 COPY app/ ./ 
 
-EXPOSE 8000
+EXPOSE 8443
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--log-level", "debug", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8443", "--ssl-keyfile", "/etc/letsencrypt/live/ultimoingresso.com.br/privkey.pem", "--ssl-certfile", "/etc/letsencrypt/live/ultimoingresso.com.br/fullchain.pem", "--root-path", "/api"]

@@ -144,7 +144,7 @@ def update_profile(
         with open(file_location, "wb") as f:
             shutil.copyfileobj(file.file, f)
         backend_url = os.getenv("BACKEND_URL", "http://localhost:8000")
-        current_user.profile_image = f"{backend_url}/static/profile_images/{filename}"
+        current_user.profile_image = f"https://ultimoingresso.com.br/api/static/profile_images/{filename}"
     if username:
         current_user.username = username
     db.commit()
@@ -173,16 +173,16 @@ def weekly_ranking(db: Session = Depends(get_db)):
         models.CheckIn.timestamp >= start_dt,
         models.CheckIn.timestamp <= end_dt
     ).group_by(models.CheckIn.user_id).all()
-    
+
     # Cria um dicionário com a contagem real de checkins (sem filtro)
     display_scores = {user_id: count for user_id, count in weekly_data}
-    
+
     # Função para calcular os pontos projetados com base no número de checkins
     def calculate_points(count):
         if count < MIN_TRAINING_DAYS:
             return 0
         return 10 + 3 * (count - MIN_TRAINING_DAYS)
-    
+
     # Para atualização de pontos no banco (somente se a semana estiver completa)
     if week_closed:
         weekly_record = db.query(models.WeeklyUpdate).filter(
@@ -216,12 +216,19 @@ def weekly_ranking(db: Session = Depends(get_db)):
         ).all()
     else:
         display_users = []
-    
+    # Construa uma lista de dicionários com os dados dos usuários e os campos extras
+    users_data = []
     for user_obj in display_users:
         count = display_scores.get(user_obj.id, 0)
-        user_obj.weekly_score = count
-        user_obj.calculated_points = calculate_points(count)
-    
+        users_data.append({
+            "id": user_obj.id,
+            "username": user_obj.username,
+            "profile_image": user_obj.profile_image,
+            "points": user_obj.points,  # pontos acumulados (atualizados se a semana estiver fechada)
+            "weekly_score": count,
+            "calculated_points": calculate_points(count)
+        })
+
     # Ordena os usuários por weekly_score (decrescente)
     display_users.sort(key=lambda u: u.weekly_score, reverse=True)
 
@@ -264,17 +271,19 @@ def weekly_ranking(db: Session = Depends(get_db)):
             "id": u.id,
             "username": u.username,
             "profile_image": u.profile_image,
+            "points": u.points,
+            "weekly_score": display_scores.get(u.id, 0),
             "weeks_won": u.weeks_won,
         }
         for u in summary_users
     ]
-    
     return {
         "podium": podium_data,
         "others": others_data,
         "summary": summary_data,
         "weekly": list(display_scores.items())
     }
+
 
 
 
