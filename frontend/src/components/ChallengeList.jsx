@@ -1,66 +1,82 @@
+// frontend/src/components/ChallengeList.jsx
 import React, { useEffect, useState } from "react";
-import Modal from "./Modal";
-import ChallengeDetailModal from "./ChallengeDetailModal";
+import { useNavigate } from "react-router-dom";
 
 const ChallengeList = ({ user }) => {
   const [challenges, setChallenges] = useState([]);
-  const [selectedChallengeId, setSelectedChallengeId] = useState(null);
+  const [challengesWithCount, setChallengesWithCount] = useState([]);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+  const navigate = useNavigate();
 
+  // Busca os desafios criados pelo usuário
   useEffect(() => {
-    if (user && user.token) {
-      fetch(`${API_URL}/challenges/`, {
+    fetch(`${API_URL}/challenges/`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${user.token}`
+      }
+    })
+      .then(res => res.json())
+      .then(data => setChallenges(data))
+      .catch(err => console.error(err));
+  }, [API_URL, user.token]);
+
+  // Função para buscar a contagem de participantes para um desafio
+  const getParticipantCount = async (challengeId) => {
+    try {
+      const res = await fetch(`${API_URL}/challenges/${challengeId}/participants/count`, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
-        },
-      })
-        .then((res) => res.json())
-        .then(setChallenges)
-        .catch((err) => console.error("Erro ao carregar desafios:", err));
+          Authorization: `Bearer ${user.token}`
+        }
+      });
+      const data = await res.json();
+      return data.count;
+    } catch (err) {
+      console.error(err);
+      return 0;
     }
-  }, [API_URL, user]);
+  };
+
+  // Para cada desafio, busque a contagem e armazene em challengesWithCount
+  useEffect(() => {
+    const loadCounts = async () => {
+      const updated = await Promise.all(
+        challenges.map(async (ch) => {
+          const count = await getParticipantCount(ch.id);
+          return { ...ch, participantCount: count };
+        })
+      );
+      setChallengesWithCount(updated);
+    };
+    if(challenges.length > 0) {
+      loadCounts();
+    }
+  }, [challenges]);
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Desafios Disponíveis</h1>
-      <ul className="space-y-4">
-        {challenges.map((challenge) => (
-          <li key={challenge.id} className="border p-4 rounded">
-            <h2 className="text-xl font-bold">
-              {challenge.title} <span className="text-sm text-gray-500">(ID: {challenge.code})</span>
-            </h2>
-            <p>{challenge.description}</p>
-            <p>
-              Modalidade: <strong>{challenge.modality}</strong> | Meta:{" "}
-              <strong>{challenge.target}</strong>{" "}
-              {challenge.modality === "academia" ? "treinos" : ""}
-            </p>
-            <p>
-              Período: {new Date(challenge.start_date).toLocaleDateString()} -{" "}
-              {new Date(challenge.end_date).toLocaleDateString()}
-            </p>
-            <button
-              onClick={() => setSelectedChallengeId(challenge.id)}
-              className="text-blue-500 hover:underline"
-            >
-              Ver Detalhes
-            </button>
-          </li>
-        ))}
-      </ul>
-      {selectedChallengeId && (
-        <Modal isOpen={true} onClose={() => setSelectedChallengeId(null)}>
-          <ChallengeDetailModal 
-            challengeId={selectedChallengeId} 
-            user={user} 
-            onClose={() => setSelectedChallengeId(null)}
-            onDeleteSuccess={() => {
-              // Após exclusão, atualize a lista:
-              setChallenges(challenges.filter(ch => ch.id !== selectedChallengeId));
-            }}
-          />
-        </Modal>
+    <div className="p-4">
+      <h2 className="text-2xl font-bold mb-4">Meus desafios</h2>
+      {challengesWithCount.length === 0 ? (
+        <p>Nenhum desafio criado.</p>
+      ) : (
+        <div className="space-y-4">
+          {challengesWithCount.map(ch => (
+            <div key={ch.id} className="border p-4 rounded shadow flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-xl">{ch.title}</h3>
+                <p className="text-sm text-gray-600">Código: {ch.code}</p>
+                <p className="mt-1">Participantes: {ch.participantCount}</p>
+              </div>
+              <button
+                onClick={() => navigate(`/challenges/${ch.id}`)}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Ver detalhes
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

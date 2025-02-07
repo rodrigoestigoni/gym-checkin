@@ -1,8 +1,7 @@
+// frontend/src/components/ChallengeInvitations.jsx
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
 
-const ChallengeInvitations = ({ user }) => {
-  const { challengeId } = useParams();
+const ChallengeInvitations = ({ challengeId, user }) => {
   const [pending, setPending] = useState([]);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
@@ -14,29 +13,17 @@ const ChallengeInvitations = ({ user }) => {
           Authorization: `Bearer ${user.token}`,
         },
       })
-        .then((res) => res.json())
-        .then(setPending)
+        .then((res) => {
+          console.log("Response status from /pending:", res.status);
+          return res.json();
+        })
+        .then((data) => {
+          console.log("Dados pendentes recebidos:", data);
+          setPending(data);
+        })
         .catch((err) => console.error(err));
     }
   }, [API_URL, challengeId, user.token]);
-
-  const handleApprove = async (participantId) => {
-    try {
-      const res = await fetch(`${API_URL}/challenges/${challengeId}/approve?participant_id=${participantId}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (res.ok) {
-        setPending(pending.filter((p) => p.id !== participantId));
-      } else {
-        alert("Erro ao aprovar o participante");
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
   return (
     <div>
@@ -46,10 +33,16 @@ const ChallengeInvitations = ({ user }) => {
       ) : (
         <ul>
           {pending.map((p) => (
-            <li key={p.id} className="border p-2 mb-2 flex justify-between items-center">
-              <span>{p.user.username} (ID: {p.id})</span>
+            <li
+              key={p.id}
+              className="border p-2 mb-2 flex justify-between items-center"
+            >
+              <span>ID: {p.id} - User ID: {p.user_id}</span>
               <button
-                onClick={() => handleApprove(p.id)}
+                onClick={() => {
+                  // Aqui você pode implementar a função de aprovação
+                  alert(`Aprovar o participante com ID: ${p.id}`);
+                }}
                 className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
               >
                 Aprovar

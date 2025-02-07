@@ -1,3 +1,4 @@
+// frontend/src/components/ChallengeCreate.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,20 +10,20 @@ const ChallengeCreate = ({ user }) => {
   const [startDate, setStartDate] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [bet, setBet] = useState("");  // Estado para as regras/aposta
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const navigate = useNavigate();
 
-  // Se startDate e durationDays mudarem, atualiza endDate
+  // Atualiza endDate se startDate e durationDays mudarem
   useEffect(() => {
     if (startDate && durationDays) {
       const start = new Date(startDate);
-      // Subtrai 1 porque se for 30 dias, o desafio vai do dia 1 ao dia 30
       const calculatedEnd = new Date(start.getTime() + (durationDays - 1) * 24 * 60 * 60 * 1000);
       setEndDate(calculatedEnd.toISOString().split("T")[0]);
     }
   }, [startDate, durationDays]);
 
-  // Se startDate e endDate mudarem, recalcula a duração
+  // Atualiza durationDays se startDate e endDate mudarem
   useEffect(() => {
     if (startDate && endDate) {
       const start = new Date(startDate);
@@ -46,6 +47,7 @@ const ChallengeCreate = ({ user }) => {
       start_date: new Date(startDate).toISOString(),
       duration_days: parseInt(durationDays),
       end_date: new Date(endDate).toISOString(),
+      bet,  // Envia o campo de regras/aposta
     };
     try {
       const res = await fetch(`${API_URL}/challenges/`, {
@@ -146,6 +148,15 @@ const ChallengeCreate = ({ user }) => {
             className="w-full p-2 border rounded"
             required
           />
+        </div>
+        <div>
+          <label className="block text-gray-700">Regras / Aposta:</label>
+          <textarea
+            value={bet}
+            onChange={(e) => setBet(e.target.value)}
+            className="w-full p-2 border rounded"
+            placeholder="Digite as regras, apostas, etc."
+          ></textarea>
         </div>
         <button
           type="submit"

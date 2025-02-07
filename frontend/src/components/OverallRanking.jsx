@@ -1,18 +1,32 @@
+// frontend/src/components/OverallRanking.jsx
 import React, { useEffect, useState } from "react";
 
+const computeOverallRanking = (users, scoreKey) => {
+  const sortedUsers = [...users].sort((a, b) => b[scoreKey] - a[scoreKey]);
+  let rankedUsers = [];
+  for (let i = 0; i < sortedUsers.length; i++) {
+    if (i > 0 && sortedUsers[i][scoreKey] === sortedUsers[i - 1][scoreKey]) {
+      rankedUsers.push({ ...sortedUsers[i], rank: rankedUsers[i - 1].rank });
+    } else {
+      rankedUsers.push({ ...sortedUsers[i], rank: i + 1 });
+    }
+  }
+  return rankedUsers;
+};
+
 const OverallRanking = () => {
-  const [overall, setOverall] = useState([]); // usamos "overall" como estado
+  const [overall, setOverall] = useState([]);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     fetch(`${API_URL}/ranking/overall`)
       .then((res) => res.json())
       .then((data) => {
-        // Esperamos que o endpoint retorne um objeto com a chave "overall"
         if (data.overall) {
-          setOverall(data.overall);
+          const computed = computeOverallRanking(data.overall, "points");
+          setOverall(computed);
         } else {
-          setOverall([]); // ou trate o erro conforme necessário
+          setOverall([]);
         }
       })
       .catch((err) => console.error(err));
@@ -31,9 +45,9 @@ const OverallRanking = () => {
           </tr>
         </thead>
         <tbody>
-          {overall.map((u, index) => (
+          {overall.map((u) => (
             <tr key={u.id}>
-              <td className="py-2 border text-center">{index + 1}</td>
+              <td className="py-2 border text-center">{u.rank}</td>
               <td className="py-2 border text-center">{u.username}</td>
               <td className="py-2 border text-center">
                 {u.profile_image ? (

@@ -14,8 +14,9 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-class User(UserBase):
+class User(BaseModel):
     id: int
+    username: str
     status: str
     points: int
     profile_image: Optional[str] = None
@@ -72,6 +73,7 @@ class Challenge(ChallengeBase):
     id: int
     code: str
     created_by: int
+    creator: Optional[User]
 
     class Config:
         orm_mode = True
@@ -80,11 +82,31 @@ class ChallengeParticipantBase(BaseModel):
     progress: Optional[int] = 0
     submission_image: Optional[str] = None
 
-class ChallengeParticipant(ChallengeParticipantBase):
+class ChallengeParticipant(BaseModel):
     id: int
     challenge_id: int
     user_id: int
     joined_at: datetime
+    progress: Optional[float] = 0
+    submission_image: Optional[str] = None
+    approved: bool
+
+    class Config:
+        orm_mode = True
+
+class ChallengeParticipationResponse(BaseModel):
+    challenge: Challenge
+    participant: ChallengeParticipant
+
+    class Config:
+        orm_mode = True
+
+class ChallengeParticipantResponse(BaseModel):
+    id: int
+    user: User   # usuário participante
+    joined_at: datetime
+    progress: Optional[float] = 0
+    submission_image: Optional[str] = None
     approved: bool
 
     class Config:

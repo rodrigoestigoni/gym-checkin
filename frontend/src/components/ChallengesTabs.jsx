@@ -1,14 +1,25 @@
+// frontend/src/components/ChallengesTabs.jsx
 import React, { useState } from "react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEye, faPlusCircle, faTrophy, faUserCheck, faSearch } from '@fortawesome/free-solid-svg-icons';
-import ChallengeList from "./ChallengeList";
+import { 
+  faEye, 
+  faPlusCircle, 
+  faTrophy, 
+  faUserCheck, 
+  faSearch, 
+  faListAlt, 
+  faEnvelope 
+} from '@fortawesome/free-solid-svg-icons';
+import ChallengeList from "./ChallengeList"; // Desafios criados pelo usuário
 import ChallengeCreate from "./ChallengeCreate";
 import ChallengeRanking from "./ChallengeRanking";
-import ChallengeInvitations from "./ChallengeInvitations";
 import ChallengeInvite from "./ChallengeInvite";
+import MyParticipatedChallenges from "./MyParticipatedChallenges";
+import AllChallengeInvitations from "./AllChallengeInvitations";
 
 const ChallengesTabs = ({ user }) => {
-  const [activeTab, setActiveTab] = useState("list"); // 'list', 'create', 'ranking', 'invite', 'invitations'
+  // abas: "list", "create", "ranking", "invite", "participated", "invitations"
+  const [activeTab, setActiveTab] = useState("list");
 
   return (
     <div className="container mx-auto p-4">
@@ -19,14 +30,14 @@ const ChallengesTabs = ({ user }) => {
           onClick={() => setActiveTab("list")}
         >
           <FontAwesomeIcon icon={faEye} className="mr-2" />
-          Visualizar
+          Meus desafios
         </button>
         <button
           className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${activeTab === "create" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"}`}
           onClick={() => setActiveTab("create")}
         >
           <FontAwesomeIcon icon={faPlusCircle} className="mr-2" />
-          Criar
+          Criar desafio
         </button>
         <button
           className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${activeTab === "ranking" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"}`}
@@ -43,19 +54,27 @@ const ChallengesTabs = ({ user }) => {
           Buscar
         </button>
         <button
+          className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${activeTab === "participated" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"}`}
+          onClick={() => setActiveTab("participated")}
+        >
+          <FontAwesomeIcon icon={faListAlt} className="mr-2" />
+          Minhas participações
+        </button>
+        <button
           className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${activeTab === "invitations" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"}`}
           onClick={() => setActiveTab("invitations")}
         >
-          <FontAwesomeIcon icon={faUserCheck} className="mr-2" />
-          Convites
+          <FontAwesomeIcon icon={faEnvelope} className="mr-2" />
+          Aprovar Convites
         </button>
       </div>
       <div>
         {activeTab === "list" && <ChallengeList user={user} />}
         {activeTab === "create" && <ChallengeCreate user={user} />}
-        {activeTab === "ranking" && <ChallengeRanking />} {/* Certifique-se de passar o challengeId via nested routes, se necessário */}
+        {activeTab === "ranking" && <ChallengeRanking />}
         {activeTab === "invite" && <ChallengeInvite user={user} />}
-        {activeTab === "invitations" && <ChallengeInvitations user={user} />}
+        {activeTab === "participated" && <MyParticipatedChallenges user={user} />}
+        {activeTab === "invitations" && <AllChallengeInvitations user={user} />}
       </div>
     </div>
   );

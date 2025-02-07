@@ -1,17 +1,17 @@
+// frontend/src/components/ChallengeDetail.jsx
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import ShareChallenge from "./ShareChallenge";
+import { useParams } from "react-router-dom";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTrash } from '@fortawesome/free-solid-svg-icons';
 
 const ChallengeDetail = ({ user }) => {
   const { challengeId } = useParams();
-  const [challenge, setChallenge] = useState(null);
-  const [alreadyJoined, setAlreadyJoined] = useState(false);
-  const navigate = useNavigate();
+  const [challengeData, setChallengeData] = useState(null);
+  const [participants, setParticipants] = useState([]);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
-    if (!challengeId) return;
-    // Buscar os detalhes do desafio
+    // Buscar os detalhes do desafio (incluindo o criador)
     fetch(`${API_URL}/challenges/${challengeId}`, {
       headers: {
         "Content-Type": "application/json",
@@ -19,125 +19,105 @@ const ChallengeDetail = ({ user }) => {
       },
     })
       .then((res) => res.json())
-      .then(setChallenge)
-      .catch((err) => console.error(err));
+      .then((data) => setChallengeData(data))
+      .catch((err) => console.error("Erro ao buscar detalhes do desafio:", err));
+  }, [API_URL, challengeId, user.token]);
 
-    // Verificar se o usuário já solicitou participação
-    fetch(`${API_URL}/challenges/${challengeId}/participant-status`, {
+  useEffect(() => {
+    // Buscar os registros de participação aprovados (com dados do usuário)
+    fetch(`${API_URL}/challenges/${challengeId}/participants`, {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${user.token}`,
       },
     })
-      .then((res) => {
-        // Se o usuário não tiver solicitado, o endpoint pode retornar 404 ou um objeto com status "pending"
-        if (res.status === 200) return res.json();
-        else return null;
-      })
+      .then((res) => res.json())
       .then((data) => {
-        if (data) setAlreadyJoined(true);
+        console.log("Participantes retornados:", data);
+        setParticipants(data);
       })
-      .catch((err) => console.error(err));
+      .catch((err) => console.error("Erro ao buscar participantes:", err));
   }, [API_URL, challengeId, user.token]);
 
-  if (!challenge) return <div>Carregando...</div>;
+  const handleRemoveParticipant = (participantId) => {
+    if (window.confirm("Tem certeza que deseja remover este participante?")) {
+      fetch(`${API_URL}/challenge-participants/${participantId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      })
+        .then((res) => {
+          if (res.ok) {
+            alert("Participante removido.");
+            setParticipants(participants.filter((p) => p.id !== participantId));
+          } else {
+            alert("Erro ao remover participante.");
+          }
+        })
+        .catch((err) => console.error(err));
+    }
+  };
 
-  // Permite editar/excluir somente se o desafio ainda não começou e o usuário é o criador
-  const canEdit = (new Date(challenge.start_date) > new Date()) && (challenge.created_by === user.id);
+  if (!challengeData) return <div>Carregando detalhes do desafio...</div>;
+
+  const now = new Date();
+  const startDate = new Date(challengeData.start_date);
+  const statusText = now >= startDate ? "Em andamento!" : "Aguardando data de início";
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4 text-center">
-        {challenge.title} <span className="text-sm text-gray-500">(ID: {challenge.code})</span>
-      </h1>
-      <p>{challenge.description}</p>
-      <p>
-        Modalidade: <strong>{challenge.modality}</strong> | Meta:{" "}
-        <strong>{challenge.target}</strong>{" "}
-        {challenge.modality === "academia" ? "treinos" : ""}
-      </p>
-      <p>
-        Período: {new Date(challenge.start_date).toLocaleDateString()} -{" "}
-        {new Date(challenge.end_date).toLocaleDateString()}
-      </p>
-      <p>
-        Aposta: <strong>{challenge.bet || "Nenhuma aposta definida"}</strong>
-      </p>
-      <div className="flex space-x-4 mt-4">
-        {canEdit && (
-          <>
-            <button
-              onClick={() => navigate(`/challenges/${challenge.id}/edit`)}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            >
-              Editar Desafio
-            </button>
-            <button
-              onClick={() => {
-                if (window.confirm("Tem certeza que deseja excluir este desafio?")) {
-                  fetch(`${API_URL}/challenges/${challenge.id}`, {
-                    method: "DELETE",
-                    headers: {
-                      Authorization: `Bearer ${user.token}`,
-                    },
-                  })
-                    .then((res) => {
-                      if (res.ok) {
-                        alert("Desafio excluído com sucesso");
-                        navigate("/challenges");
-                      } else {
-                        alert("Erro ao excluir desafio");
-                      }
-                    })
-                    .catch((err) => console.error(err));
-                }
-              }}
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-            >
-              Excluir Desafio
-            </button>
-          </>
-        )}
-        {/* Se o usuário não for o criador, mostrar opção de participar */}
-        {challenge.created_by !== user.id && (
-          <>
-            {alreadyJoined ? (
-              <button
-                disabled
-                className="bg-gray-400 text-white px-4 py-2 rounded cursor-not-allowed"
-              >
-                Aguardando aprovação
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  fetch(`${API_URL}/challenges/${challenge.id}/join`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      Authorization: `Bearer ${user.token}`,
-                    },
-                  })
-                    .then((res) => {
-                      if (res.ok) {
-                        alert("Solicitação enviada! Aguarde aprovação.");
-                        setAlreadyJoined(true);
-                      } else {
-                        alert("Erro ao solicitar participação");
-                      }
-                    })
-                    .catch((err) => console.error(err));
-                }}
-                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-              >
-                Solicitar Participação
-              </button>
-            )}
-          </>
-        )}
-        <ShareChallenge challengeId={challenge.id} />
+      {/* Cabeçalho com detalhes do desafio */}
+      <div className="border p-4 rounded shadow mb-4">
+        <h1 className="text-3xl font-bold mb-2">{challengeData.title}</h1>
+        <p className="text-sm text-gray-600">Código: {challengeData.code}</p>
+        <p className="mt-2">{challengeData.description}</p>
+        <p className="mt-2">
+          Período: {new Date(challengeData.start_date).toLocaleDateString()} - {new Date(challengeData.end_date).toLocaleDateString()}
+        </p>
+        <p className="mt-2 font-semibold">{statusText}</p>
+        <p className="mt-2 font-semibold">Participantes: {participants.length}</p>
+        {/* Seção para exibir o criador */}
+        <div className="mt-4 flex items-center">
+          <img
+            src={challengeData.creator?.profile_image || "/placeholder.png"}
+            alt={challengeData.creator?.username || "Sem foto"}
+            className="h-10 w-10 rounded-full object-cover"
+          />
+          <span className="ml-2 font-semibold">Criado por: {challengeData.creator?.username}</span>
+        </div>
       </div>
-      {/* Opcional: incluir abas internas (detalhes, ranking, etc.) dentro da página de desafio */}
+      {/* Lista de participantes */}
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Participantes</h2>
+        {participants.length === 0 ? (
+          <p>Nenhum participante.</p>
+        ) : (
+          <ul className="space-y-2">
+            {participants.map((p) => (
+              <li key={p.id} className="flex items-center justify-between border p-2 rounded">
+                <div className="flex items-center">
+                  <img
+                    src={p.user.profile_image || "/placeholder.png"}
+                    alt={p.user.username || `User ${p.id}`}
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                  <span className="ml-2">{p.user.username || `User ${p.id}`}</span>
+                </div>
+                {/* Se o usuário logado for o criador, exibir botão para remover */}
+                {challengeData.created_by === user.id && (
+                  <button
+                    onClick={() => handleRemoveParticipant(p.id)}
+                    className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600 flex items-center"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="mr-1" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 };

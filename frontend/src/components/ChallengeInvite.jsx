@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+// frontend/src/components/ChallengeInvite.jsx
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 const ChallengeInvite = ({ user }) => {
   const [inviteCode, setInviteCode] = useState("");
   const [challenge, setChallenge] = useState(null);
   const [error, setError] = useState("");
+  const [participantStatus, setParticipantStatus] = useState(null);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const navigate = useNavigate();
 
@@ -33,6 +35,31 @@ const ChallengeInvite = ({ user }) => {
     }
   };
 
+  // Assim que um desafio for encontrado, busque o status de participação
+  useEffect(() => {
+    if (challenge && challenge.id) {
+      fetch(`${API_URL}/challenges/${challenge.id}/participant-status`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+      })
+        .then((res) => {
+          // Use um log para debugar
+          console.log("Response status from participant-status:", res.status);
+          if (res.ok) return res.json();
+          else return null;
+        })
+        .then((data) => {
+          console.log("Dados de participant-status:", data);
+          setParticipantStatus(data);
+        })
+        .catch((err) =>
+          console.error("Erro ao buscar participant-status:", err)
+        );
+    }
+  }, [API_URL, challenge, user.token]);
+
   const handleJoin = async () => {
     if (!challenge) return;
     try {
@@ -45,8 +72,7 @@ const ChallengeInvite = ({ user }) => {
       });
       if (res.ok) {
         alert("Solicitação enviada! Aguarde aprovação.");
-        setChallenge(null);
-        setInviteCode("");
+        setParticipantStatus(true);
       } else {
         alert("Erro ao solicitar participação");
       }
@@ -88,12 +114,23 @@ const ChallengeInvite = ({ user }) => {
             Período: {new Date(challenge.start_date).toLocaleDateString()} -{" "}
             {new Date(challenge.end_date).toLocaleDateString()}
           </p>
-          <button
-            onClick={handleJoin}
-            className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 mt-2"
-          >
-            Solicitar Participação
-          </button>
+          {challenge.bet && (
+            <p>
+              <strong>Regras / Aposta:</strong> {challenge.bet}
+            </p>
+          )}
+          {participantStatus ? (
+            <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded">
+              Aguardando aprovação
+            </div>
+          ) : (
+            <button
+              onClick={handleJoin}
+              className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 mt-2"
+            >
+              Solicitar Participação
+            </button>
+          )}
         </div>
       )}
     </div>
