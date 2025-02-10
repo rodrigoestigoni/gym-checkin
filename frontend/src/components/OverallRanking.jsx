@@ -2,17 +2,22 @@
 import React, { useEffect, useState } from "react";
 
 const computeOverallRanking = (users, scoreKey) => {
+  // Ordena os usuários de forma decrescente pelo score
   const sortedUsers = [...users].sort((a, b) => b[scoreKey] - a[scoreKey]);
   let rankedUsers = [];
-  for (let i = 0; i < sortedUsers.length; i++) {
-    if (i > 0 && sortedUsers[i][scoreKey] === sortedUsers[i - 1][scoreKey]) {
-      rankedUsers.push({ ...sortedUsers[i], rank: rankedUsers[i - 1].rank });
-    } else {
-      rankedUsers.push({ ...sortedUsers[i], rank: i + 1 });
+  let currentRank = 1;
+  if (sortedUsers.length > 0) {
+    rankedUsers.push({ ...sortedUsers[0], rank: currentRank });
+  }
+  for (let i = 1; i < sortedUsers.length; i++) {
+    if (sortedUsers[i][scoreKey] < sortedUsers[i - 1][scoreKey]) {
+      currentRank++;  // incrementa somente quando o score diminui
     }
+    rankedUsers.push({ ...sortedUsers[i], rank: currentRank });
   }
   return rankedUsers;
 };
+
 
 const OverallRanking = () => {
   const [overall, setOverall] = useState([]);
