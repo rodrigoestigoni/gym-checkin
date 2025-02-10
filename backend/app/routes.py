@@ -153,29 +153,16 @@ def update_profile(
 
 @router.get("/ranking/weekly")
 def weekly_ranking(db: Session = Depends(get_db)):
-    # Definir a semana para cálculo: queremos usar a semana completa já encerrada.
     today = datetime.utcnow().date()
-    # Se hoje for segunda (weekday == 0), queremos a semana anterior.
-    if today.weekday() == 0:
-        # Se hoje é segunda, last_sunday será hoje - 8 dias (por exemplo, se hoje é 10/02, last_sunday = 02/02)
-        last_sunday = today - timedelta(days=8)
-    else:
-        days_to_subtract = (today.weekday() + 1) % 7  # Por exemplo, se hoje for terça (weekday 1), subtrai 2 dias
-        last_sunday = today - timedelta(days=days_to_subtract)
-    
-    start_dt = datetime.combine(last_sunday, datetime.min.time())
-    now = datetime.utcnow()
-    
-    # Define o último sábado da semana considerada
+    # Sempre use a semana completa anterior:
+    last_sunday = today - timedelta(days=((today.isoweekday() % 7) + 7))
     last_saturday = last_sunday + timedelta(days=6)
-    week_closed = now >= datetime.combine(last_saturday, datetime.max.time())
-    end_dt = datetime.combine(last_saturday, datetime.max.time()) if week_closed else now
-
-    # Para debug
-    print(f"today: {today}, last_sunday: {last_sunday}, last_saturday: {last_saturday}")
-    print(f"now: {now}, week_closed: {week_closed}")
+    start_dt = datetime.combine(last_sunday, datetime.min.time())
+    end_dt = datetime.combine(last_saturday, datetime.max.time())
     
-    # Consulta os checkins dentro do período definido
+    print(f"today: {today}, last_sunday: {last_sunday}, last_saturday: {last_saturday}")
+    
+    # Consulta os checkins entre start_dt e end_dt
     weekly_data = db.query(
         models.CheckIn.user_id,
         func.count(models.CheckIn.id).label("count")
@@ -193,10 +180,12 @@ def weekly_ranking(db: Session = Depends(get_db)):
             return 0
         return 10 + 3 * (count - MIN_TRAINING_DAYS)
     
+    # Como a semana está completa (definimos o período da semana anterior), consideramos week_closed=True
+    week_closed = True
     if week_closed:
         weekly_record = db.query(models.WeeklyUpdate).filter(
             models.WeeklyUpdate.week_start == start_dt,
-            models.WeeklyUpdate.week_end == datetime.combine(last_saturday, datetime.max.time())
+            models.WeeklyUpdate.week_end == end_dt
         ).first()
         print(f"weekly_record: {weekly_record}")
         if not weekly_record:
@@ -214,7 +203,7 @@ def weekly_ranking(db: Session = Depends(get_db)):
                 db.commit()
             new_update = models.WeeklyUpdate(
                 week_start=start_dt,
-                week_end=datetime.combine(last_saturday, datetime.max.time())
+                week_end=end_dt
             )
             db.add(new_update)
             db.commit()
