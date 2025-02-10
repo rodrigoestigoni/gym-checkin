@@ -156,12 +156,17 @@ def weekly_ranking(db: Session = Depends(get_db)):
     # Definir a semana atual: começando no último domingo.
     today = datetime.utcnow().date()
     days_to_subtract = (today.weekday() + 1) % 7  # Se hoje for domingo, subtrai 0.
+    print(f"days_to_subtract: {days_to_subtract}")
     last_sunday = today - timedelta(days=days_to_subtract)
+    print(f"last_sunday: {last_sunday}")
     start_dt = datetime.combine(last_sunday, datetime.min.time())
+    print(f"start_dt: {start_dt}")
     now = datetime.utcnow()  # Fim: agora (para exibição, mesmo se a semana não estiver completa)
+    print(f"now: {now}")
 
     # Defina o último sábado da semana
     last_saturday = last_sunday + timedelta(days=6)
+    print(f"last_saturday: {last_saturday}")
     week_closed = now >= datetime.combine(last_saturday, datetime.max.time())
     print(f"week_closed: {week_closed}")
     end_dt = datetime.combine(last_saturday, datetime.max.time()) if week_closed else now
