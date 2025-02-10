@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 
 celery = Celery('tasks', broker='redis://redis:6379/0')
-celery.config_from_object('backend.app.celeryconfig')
+celery.config_from_object('celeryconfig')
 
 @celery.task
 def update_weekly_ranking():
