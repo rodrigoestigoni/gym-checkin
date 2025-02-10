@@ -151,62 +151,39 @@ def update_profile(
     db.refresh(current_user)
     return current_user
 
+
 @router.get("/ranking/weekly")
 def weekly_ranking(db: Session = Depends(get_db)):
     today = datetime.utcnow().date()
-    # Sempre use a semana completa anterior:
-    last_sunday = today - timedelta(days=((today.isoweekday() % 7) + 7))
-    last_saturday = last_sunday + timedelta(days=6)
-    start_dt = datetime.combine(last_sunday, datetime.min.time())
-    end_dt = datetime.combine(last_saturday, datetime.max.time())
+    if today.isoweekday() == 7:
+        start_of_week = today
+    else:
+        start_of_week = today - timedelta(days=today.isoweekday() - 1)
+    end_of_week = start_of_week + timedelta(days=6)
     
-    print(f"today: {today}, last_sunday: {last_sunday}, last_saturday: {last_saturday}")
+    start_dt = datetime.combine(start_of_week, datetime.min.time())
+    # Para o ranking semanal, usamos o horário atual como fim, mesmo que a semana não esteja completa
+    now = datetime.utcnow()
+    end_dt_for_query = now  # usamos now para contar os checkins da semana atual
     
-    # Consulta os checkins entre start_dt e end_dt
+    # Consulta os checkins da semana atual (desde o início da semana até agora)
     weekly_data = db.query(
         models.CheckIn.user_id,
         func.count(models.CheckIn.id).label("count")
     ).filter(
         models.CheckIn.timestamp >= start_dt,
-        models.CheckIn.timestamp <= end_dt
+        models.CheckIn.timestamp <= now
     ).group_by(models.CheckIn.user_id).all()
-    print(f"weekly_data: {weekly_data}")
     
     display_scores = {user_id: count for user_id, count in weekly_data}
-    print(f"display_scores: {display_scores}")
     
     def calculate_points(count):
         if count < MIN_TRAINING_DAYS:
             return 0
         return 10 + 3 * (count - MIN_TRAINING_DAYS)
     
-    # Como a semana está completa (definimos o período da semana anterior), consideramos week_closed=True
-    week_closed = True
-    if week_closed:
-        weekly_record = db.query(models.WeeklyUpdate).filter(
-            models.WeeklyUpdate.week_start == start_dt,
-            models.WeeklyUpdate.week_end == end_dt
-        ).first()
-        print(f"weekly_record: {weekly_record}")
-        if not weekly_record:
-            eligible_scores = {user_id: count for user_id, count in weekly_data if count >= MIN_TRAINING_DAYS}
-            print(f"eligible_scores: {eligible_scores}")
-            if eligible_scores:
-                users_to_update = db.query(models.User).filter(
-                    models.User.id.in_(list(eligible_scores.keys()))
-                ).all()
-                for user_obj in users_to_update:
-                    count = eligible_scores[user_obj.id]
-                    total_points = calculate_points(count)
-                    user_obj.weeks_won += 1
-                    user_obj.points += total_points
-                db.commit()
-            new_update = models.WeeklyUpdate(
-                week_start=start_dt,
-                week_end=end_dt
-            )
-            db.add(new_update)
-            db.commit()
+    # NÃO atualizamos pontos automaticamente porque a semana atual está incompleta.
+    # Apenas retornamos os dados para exibição.
     
     if display_scores:
         display_users = db.query(models.User).filter(
@@ -266,11 +243,9 @@ def weekly_ranking(db: Session = Depends(get_db)):
         "podium": podium_data,
         "others": others_data,
         "summary": summary_data,
-        "weekly": list(display_scores.items())
+        "weekly": list(display_scores.items()),
+        "week_range": {"start": str(start_of_week), "end": str(end_of_week)}
     }
-
-
-
 
 
 
