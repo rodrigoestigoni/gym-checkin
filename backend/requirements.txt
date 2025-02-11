@@ -9,3 +9,4 @@ python-jose[cryptography]
 python-dotenv
 celery
 redis
+alembic
