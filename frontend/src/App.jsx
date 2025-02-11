@@ -1,4 +1,3 @@
-// frontend/src/App.jsx
 import React, { useState, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import Header from "./components/Header";
@@ -15,10 +14,19 @@ import ChallengeEdit from "./components/ChallengeEdit";
 import ChallengeDetailByCode from "./components/ChallengeDetailByCode";
 import ChallengeCheckinForm from "./components/ChallengeCheckinForm"; // novo componente para checkin específico
 
+
+
 const App = () => {
   const [user, setUser] = useState(undefined);
 
-  // ... (seu useEffect de carregamento do usuário)
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    } else {
+      setUser(null);
+    }
+  }, []);
 
   if (user === undefined) {
     return (
