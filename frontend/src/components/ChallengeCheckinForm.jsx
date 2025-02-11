@@ -6,7 +6,7 @@ import { faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 const ChallengeCheckinForm = ({ user, challengeId }) => {
   const [duration, setDuration] = useState("");
   const [description, setDescription] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(""); // se o usuário quiser selecionar uma data
   const [msg, setMsg] = useState({ text: "", type: "" });
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
@@ -14,7 +14,6 @@ const ChallengeCheckinForm = ({ user, challengeId }) => {
     e.preventDefault();
     const payload = {
       user_id: user.id,
-      challenge_id: challengeId, // vincula o checkin ao desafio
       duration: duration ? parseFloat(duration) : null,
       description: description || null,
       ...(date && { timestamp: new Date(date).toISOString() })

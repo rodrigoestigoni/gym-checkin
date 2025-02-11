@@ -66,7 +66,16 @@ const ChallengeDetail = ({ user }) => {
   const statusText = now >= startDate ? "Em andamento!" : "Aguardando data de início";
 
   return (
-    <div className="p-4 max-w-4xl mx-auto">
+    <>
+      <div className="flex justify-center mb-4">
+        <button
+          onClick={() => navigate(`/challenges/${challengeData.id}/checkin`)}
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          Fazer Checkin
+        </button>
+      </div>
+      <div className="p-4 max-w-4xl mx-auto">
       {/* Cabeçalho com detalhes do desafio */}
       <div className="border p-4 rounded shadow mb-4">
         <h1 className="text-3xl font-bold mb-2">{challengeData.title}</h1>
@@ -119,6 +128,9 @@ const ChallengeDetail = ({ user }) => {
         )}
       </div>
     </div>
+    
+    </>
+    
   );
 };
 

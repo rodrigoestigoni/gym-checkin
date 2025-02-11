@@ -1,3 +1,4 @@
+// frontend/src/App.jsx
 import React, { useState, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import Header from "./components/Header";
@@ -9,24 +10,15 @@ import History from "./components/History";
 import RankingTabs from "./components/RankingTabs";
 import PrivateRoute from "./components/PrivateRoute";
 import Profile from "./components/Profile";
-import ChallengesTabs from "./components/ChallengesTabs";
-import ChallengeDetail from "./components/ChallengeDetail";
+import ChallengesDashboard from "./components/ChallengesDashboard"; // nosso dashboard de desafios
 import ChallengeEdit from "./components/ChallengeEdit";
 import ChallengeDetailByCode from "./components/ChallengeDetailByCode";
-import ChallengesDashboard from "./components/ChallengesDashboard";
-
+import ChallengeCheckinForm from "./components/ChallengeCheckinForm"; // novo componente para checkin específico
 
 const App = () => {
   const [user, setUser] = useState(undefined);
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    } else {
-      setUser(null);
-    }
-  }, []);
+  // ... (seu useEffect de carregamento do usuário)
 
   if (user === undefined) {
     return (
@@ -48,10 +40,16 @@ const App = () => {
           <Route path="/history" element={<PrivateRoute user={user}><History user={user} /></PrivateRoute>} />
           <Route path="/ranking" element={<PrivateRoute user={user}><RankingTabs /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute user={user}><Profile user={user} setUser={setUser} /></PrivateRoute>} />
+          {/* Rota para o módulo de desafios */}
           <Route path="/challenges/*" element={<PrivateRoute user={user}><ChallengesDashboard user={user} /></PrivateRoute>} />
+          <Route
+            path="/challenges/:challengeId/checkin"
+            element={<PrivateRoute user={user}><ChallengeCheckinForm user={user} /></PrivateRoute>}
+          />
           <Route path="/challenges/:challengeId/edit" element={<PrivateRoute user={user}><ChallengeEdit user={user} /></PrivateRoute>} />
           <Route path="/challenge/:code" element={<PrivateRoute user={user}><ChallengeDetailByCode user={user} /></PrivateRoute>} />
-          <Route path="/challenges/:challengeId" element={<PrivateRoute user={user}><ChallengeDetail user={user} /></PrivateRoute>} />
+          {/* Outras rotas */}
+          <Route path="/challenges/:challengeId" element={<PrivateRoute user={user}><ChallengesDashboard user={user} /></PrivateRoute>} />
           <Route path="/" element={<PrivateRoute user={user}><Dashboard user={user} /></PrivateRoute>} />
         </Routes>
       </div>
