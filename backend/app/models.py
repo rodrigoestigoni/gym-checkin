@@ -21,9 +21,12 @@ class CheckIn(Base):
     __tablename__ = "checkins"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
+    # Novo campo para vincular o checkin a um desafio (pode ser nulo para checkins gerais)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
-    duration = Column(Float, nullable=True)  # duração do treino em minutos
+    duration = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
+
 
 class WeeklyUpdate(Base):
     __tablename__ = "weekly_updates"

@@ -475,6 +475,27 @@ def all_challenge_invitations(db: Session = Depends(get_db), current_user: schem
             response.append({"challenge": ch, "participant": p})
     return response
 
+@router.post("/challenges/{challenge_id}/checkin", response_model=schemas.CheckIn)
+def create_challenge_checkin(challenge_id: int, checkin: schemas.CheckInCreate, 
+                             current_user: schemas.User = Depends(get_current_user), 
+                             db: Session = Depends(get_db)):
+    # Verifica se o usuário participa do desafio
+    participation = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id,
+        models.ChallengeParticipant.approved == True
+    ).first()
+    if not participation:
+        raise HTTPException(status_code=403, detail="Você não participa deste desafio")
+    checkin_data = checkin.dict()
+    checkin_data["challenge_id"] = challenge_id
+    db_checkin = models.CheckIn(**checkin_data)
+    db.add(db_checkin)
+    db.commit()
+    db.refresh(db_checkin)
+    return db_checkin
+
+
 # Endpoint para remover um checkin
 @router.delete("/checkins/{checkin_id}", status_code=204)
 def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):

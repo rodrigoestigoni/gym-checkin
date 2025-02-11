@@ -1,15 +1,18 @@
 // frontend/src/components/ChallengesDashboard.jsx
 import React, { useState } from "react";
-import ChallengeList from "./ChallengeList"; // Desafios criados pelo usuário
-import MyParticipatedChallenges from "./MyParticipatedChallenges"; // Desafios em que o usuário participa
+import ChallengeList from "./ChallengeList";              // Desafios criados por mim
+import MyParticipatedChallenges from "./MyParticipatedChallenges"; // Desafios que participo
 import AllChallengeInvitations from "./AllChallengeInvitations"; // Convites pendentes para aprovação
-import ChallengeCreate from "./ChallengeCreate";
-import ChallengeRanking from "./ChallengeRanking";
-import ChallengeInvite from "./ChallengeInvite";
+import ChallengeCreate from "./ChallengeCreate";          // Formulário para criar desafio
+import ChallengeRankingView from "./ChallengeRankingView";  // Seleciona e exibe ranking de um desafio
+import ChallengeInvite from "./ChallengeInvite";            // Buscar desafio por código
 
 const ChallengesDashboard = ({ user }) => {
-  // Definimos 4 abas principais: Dashboard (agrupa Meus Desafios, Participações e Convites),
-  // Criar Desafio, Ranking e Buscar
+  // Quatro abas principais para modularizar:
+  // "dashboard": agrupa meus desafios, participações e convites
+  // "create": criar desafio
+  // "ranking": ranking dos desafios (selecionável)
+  // "search": buscar desafio por código
   const [activeTab, setActiveTab] = useState("dashboard");
 
   return (
@@ -52,15 +55,14 @@ const ChallengesDashboard = ({ user }) => {
 
       <div>
         {activeTab === "dashboard" && (
-          <div>
-            {/* Agrupa os desafios criados, participações e convites pendentes */}
+          <div className="space-y-8">
             <ChallengeList user={user} />
             <MyParticipatedChallenges user={user} />
             <AllChallengeInvitations user={user} />
           </div>
         )}
         {activeTab === "create" && <ChallengeCreate user={user} />}
-        {activeTab === "ranking" && <ChallengeRanking user={user} />}
+        {activeTab === "ranking" && <ChallengeRankingView user={user} />}
         {activeTab === "search" && <ChallengeInvite user={user} />}
       </div>
     </div>
