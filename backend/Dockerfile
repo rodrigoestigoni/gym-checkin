@@ -15,5 +15,5 @@ COPY . .
 
 EXPOSE 8443
 
-CMD ["/entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]
 
