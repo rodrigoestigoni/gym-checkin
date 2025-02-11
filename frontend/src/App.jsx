@@ -13,6 +13,7 @@ import ChallengesTabs from "./components/ChallengesTabs";
 import ChallengeDetail from "./components/ChallengeDetail";
 import ChallengeEdit from "./components/ChallengeEdit";
 import ChallengeDetailByCode from "./components/ChallengeDetailByCode";
+import ChallengesDashboard from "./components/ChallengesDashboard";
 
 
 const App = () => {
@@ -47,7 +48,7 @@ const App = () => {
           <Route path="/history" element={<PrivateRoute user={user}><History user={user} /></PrivateRoute>} />
           <Route path="/ranking" element={<PrivateRoute user={user}><RankingTabs /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute user={user}><Profile user={user} setUser={setUser} /></PrivateRoute>} />
-          <Route path="/challenges/*" element={<PrivateRoute user={user}><ChallengesTabs user={user} /></PrivateRoute>} />
+          <Route path="/challenges/*" element={<PrivateRoute user={user}><ChallengesDashboard user={user} /></PrivateRoute>} />
           <Route path="/challenges/:challengeId/edit" element={<PrivateRoute user={user}><ChallengeEdit user={user} /></PrivateRoute>} />
           <Route path="/challenge/:code" element={<PrivateRoute user={user}><ChallengeDetailByCode user={user} /></PrivateRoute>} />
           <Route path="/challenges/:challengeId" element={<PrivateRoute user={user}><ChallengeDetail user={user} /></PrivateRoute>} />
