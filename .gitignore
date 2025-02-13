@@ -47,6 +47,7 @@ Thumbs.db
 # Ignorar a database
 data/gymcheckin.db
 backend/app/data/gymcheckin.db
+backend/app/gymcheckin.db
 
 # Ignorar todas as imagens de perfil
 backend/app/static/profile_images/
