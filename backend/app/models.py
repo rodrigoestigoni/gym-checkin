@@ -58,7 +58,8 @@ class ChallengeParticipant(Base):
     challenge_id = Column(Integer, ForeignKey("challenges.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     joined_at = Column(DateTime, default=func.now())
-    progress = Column(Integer, default=0)  # Progresso (ex.: número de treinos, km, etc.)
+    progress = Column(Integer, default=0)  # Por exemplo, quantidade de checkins feitos no desafio
+    challenge_points = Column(Integer, default=0)  # Novo campo para pontos do desafio
     submission_image = Column(String, nullable=True)
     approved = Column(Boolean, default=False)
     challenge = relationship("Challenge", back_populates="participants")
