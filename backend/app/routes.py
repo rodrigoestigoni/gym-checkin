@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta
 import os, shutil
+import logging
 from . import schemas, crud, auth, database, models
 from .config import MIN_TRAINING_DAYS
 
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 
-
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -77,14 +78,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = auth.create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
-### Endpoint para criar um checkin
-@router.post("/checkin/", response_model=schemas.CheckIn)
-def create_checkin(checkin: schemas.CheckInCreate, current_user: schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Garante que o usuário está criando seu próprio checkin
-    if checkin.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Não autorizado")
-    return crud.create_checkin(db, checkin)
-
 ### Endpoint para obter checkins do usuário (lista paginada)
 @router.get("/users/{user_id}/checkins/", response_model=list[schemas.CheckIn])
 def get_checkins(user_id: int, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
@@ -101,33 +94,9 @@ def get_weekly_checkins(user_id: int, week_offset: int = 0, db: Session = Depend
     end_of_week = start_of_week + timedelta(days=6)
     return crud.get_checkins_by_user_between(db, user_id, start_of_week, end_of_week)
 
-### Endpoint para ranking
 @router.get("/ranking/", response_model=list[schemas.User])
 def get_ranking(limit: int = 10, db: Session = Depends(get_db)):
-    return crud.get_ranking(db, limit)
-
-# Endpoint para atualizar um checkin
-@router.put("/checkins/{checkin_id}", response_model=schemas.CheckIn)
-def update_checkin(checkin_id: int, update: schemas.CheckInUpdate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    checkin = crud.get_checkin(db, checkin_id)
-    if not checkin:
-        raise HTTPException(status_code=404, detail="Checkin não encontrado")
-    if checkin.user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Não autorizado")
-    updated = crud.update_checkin(db, checkin, update)
-    return updated
-
-
-# Endpoint para remover um checkin
-@router.delete("/checkins/{checkin_id}", status_code=204)
-def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    checkin = crud.get_checkin(db, checkin_id)
-    if not checkin:
-        raise HTTPException(status_code=404, detail="Checkin não encontrado")
-    if checkin.user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Não autorizado")
-    crud.delete_checkin(db, checkin)
-    return
+    return db.query(models.User).order_by(models.User.points.desc()).limit(limit).all()
 
 @router.put("/users/me", response_model=schemas.User)
 def update_profile(
@@ -150,120 +119,6 @@ def update_profile(
     db.commit()
     db.refresh(current_user)
     return current_user
-
-
-@router.get("/ranking/weekly")
-def weekly_ranking(db: Session = Depends(get_db)):
-    today = datetime.utcnow().date()
-    if today.isoweekday() == 7:
-        start_of_week = today
-    else:
-        start_of_week = today - timedelta(days=today.isoweekday() - 1)
-    end_of_week = start_of_week + timedelta(days=6)
-    
-    start_dt = datetime.combine(start_of_week, datetime.min.time())
-    # Para o ranking semanal, usamos o horário atual como fim, mesmo que a semana não esteja completa
-    now = datetime.utcnow()
-    end_dt_for_query = now  # usamos now para contar os checkins da semana atual
-    
-    # Consulta os checkins da semana atual (desde o início da semana até agora)
-    weekly_data = db.query(
-        models.CheckIn.user_id,
-        func.count(models.CheckIn.id).label("count")
-    ).filter(
-        models.CheckIn.timestamp >= start_dt,
-        models.CheckIn.timestamp <= now
-    ).group_by(models.CheckIn.user_id).all()
-    
-    display_scores = {user_id: count for user_id, count in weekly_data}
-    
-    def calculate_points(count):
-        if count < MIN_TRAINING_DAYS:
-            return 0
-        return 10 + 3 * (count - MIN_TRAINING_DAYS)
-    
-    # NÃO atualizamos pontos automaticamente porque a semana atual está incompleta.
-    # Apenas retornamos os dados para exibição.
-    
-    if display_scores:
-        display_users = db.query(models.User).filter(
-            models.User.id.in_(list(display_scores.keys()))
-        ).all()
-    else:
-        display_users = []
-    
-    for user_obj in display_users:
-        count = display_scores.get(user_obj.id, 0)
-        user_obj.weekly_score = count
-        user_obj.calculated_points = calculate_points(count)
-    
-    groups = {}
-    for user in display_users:
-        score = user.weekly_score
-        if score not in groups:
-            groups[score] = []
-        groups[score].append(user)
-    
-    sorted_scores = sorted(groups.keys(), reverse=True)
-    
-    podium_data = []
-    others_data = []
-    for i, score in enumerate(sorted_scores):
-        rank = i + 1
-        group_data = [
-            {
-                "id": u.id,
-                "username": u.username,
-                "profile_image": u.profile_image,
-                "points": u.points,
-                "weekly_score": u.weekly_score,
-                "calculated_points": u.calculated_points,
-                "rank": rank
-            }
-            for u in groups[score]
-        ]
-        if rank <= 3:
-            podium_data.extend(group_data)
-        else:
-            others_data.extend(group_data)
-    
-    summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
-    summary_data = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "profile_image": u.profile_image,
-            "points": u.points,
-            "weekly_score": display_scores.get(u.id, 0),
-            "weeks_won": u.weeks_won,
-        }
-        for u in summary_users
-    ]
-    return {
-        "podium": podium_data,
-        "others": others_data,
-        "summary": summary_data,
-        "weekly": list(display_scores.items()),
-        "week_range": {"start": str(start_of_week), "end": str(end_of_week)}
-    }
-
-
-
-@router.get("/ranking/overall")
-def overall_ranking(db: Session = Depends(get_db)):
-    users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
-    data = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "profile_image": u.profile_image,
-            "weeks_won": u.weeks_won,
-            "points": u.points
-        }
-        for u in users
-    ]
-    return {"overall": data}
-
 
 @router.post("/challenges/", response_model=schemas.Challenge)
 def create_challenge(challenge: schemas.ChallengeCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
@@ -475,7 +330,110 @@ def all_challenge_invitations(db: Session = Depends(get_db), current_user: schem
             response.append({"challenge": ch, "participant": p})
     return response
 
-# Endpoint para remover um checkin
+@router.post("/admin/recalculate-points", status_code=200)
+def recalculate_points(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    crud.recalculate_all_points(db)
+    return {"detail": "Points recalculated successfully"}
+
+@router.get("/ranking/weekly")
+def weekly_ranking(db: Session = Depends(get_db)):
+    today = datetime.utcnow()
+    start_of_week = today - timedelta(days=(today.weekday() + 1) % 7)
+    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59, microseconds=999999)
+    
+    logger.debug(f"Week range: {start_of_week} to {end_of_week}")
+    
+    weekly_data = db.query(models.WeeklyPoints).filter(
+        models.WeeklyPoints.week_start == start_of_week,
+        models.WeeklyPoints.checkin_count > 0
+    ).all()
+    
+    logger.debug(f"Weekly data: {[(wp.user_id, wp.checkin_count) for wp in weekly_data]}")
+    
+    if not weekly_data:
+        return {
+            "podium": [],
+            "others": [],
+            "week_range": {"start": start_of_week.strftime("%Y-%m-%d"), "end": end_of_week.strftime("%Y-%m-%d")}
+        }
+    
+    display_scores = {wp.user_id: wp.checkin_count for wp in weekly_data}
+    user_ids = list(display_scores.keys())
+    users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
+    
+    logger.debug(f"Users found: {[(user.id, user.username) for user in users]}")
+    
+    ranking_list = []
+    for user in users:
+        weekly_count = display_scores.get(user.id, 0)
+        if weekly_count > 0:
+            ranking_list.append({
+                "id": user.id,
+                "username": user.username,
+                "profile_image": user.profile_image,
+                "weekly_score": weekly_count,
+                "rank": 0
+            })
+    
+    logger.debug(f"Ranking list before sorting: {ranking_list}")
+    
+    ranking_list.sort(key=lambda x: x["weekly_score"], reverse=True)
+    
+    # Atribui ranks, considerando empates, e ajusta para pódio até 3º lugar
+    current_rank = 1
+    previous_score = None
+    podium_data = []
+    
+    for i, user_data in enumerate(ranking_list):
+        if i > 0 and user_data["weekly_score"] < previous_score:
+            current_rank = i + 1
+        # Limitar o rank ao máximo de 3, mesmo com empates
+        user_data["rank"] = min(current_rank, 3)
+        previous_score = user_data["weekly_score"]
+        podium_data.append(user_data)
+    
+    logger.debug(f"Podium: {podium_data}")
+    logger.debug(f"Others: []")  # Nenhum "Others", todos no pódio
+    
+    return {
+        "podium": podium_data,
+        "others": [],  # Removido "Others" para incluir todos no pódio até 3º
+        "week_range": {"start": start_of_week.strftime("%Y-%m-%d"), "end": end_of_week.strftime("%Y-%m-%d")}
+    }
+
+@router.get("/ranking/overall")
+def overall_ranking(db: Session = Depends(get_db)):
+    users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
+    data = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "profile_image": u.profile_image,
+            "weeks_won": u.weeks_won,
+            "points": u.points
+        }
+        for u in users
+    ]
+    return {"overall": data}
+
+@router.post("/checkin/", response_model=schemas.CheckIn)
+def create_checkin(checkin: schemas.CheckInCreate, current_user: schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if checkin.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    return crud.create_checkin(db, checkin)
+
+@router.put("/checkins/{checkin_id}", response_model=schemas.CheckIn)
+def update_checkin(checkin_id: int, update: schemas.CheckInUpdate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    checkin = crud.get_checkin(db, checkin_id)
+    if not checkin:
+        raise HTTPException(status_code=404, detail="Checkin não encontrado")
+    if checkin.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    return crud.update_checkin(db, checkin, update)
+
 @router.delete("/checkins/{checkin_id}", status_code=204)
 def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
     checkin = crud.get_checkin(db, checkin_id)

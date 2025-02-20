@@ -5,6 +5,16 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
+class WeeklyPoints(Base):
+    __tablename__ = "weekly_points"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    week_start = Column(DateTime, nullable=False)  # Sunday of the week
+    week_end = Column(DateTime, nullable=False)    # Saturday of the week
+    checkin_count = Column(Integer, default=0)     # Number of check-ins in the week
+    points = Column(Integer, default=0)            # Calculated points for the week
+    user = relationship("User", back_populates="weekly_points")
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -15,6 +25,7 @@ class User(Base):
     points = Column(Integer, default=0)
     profile_image = Column(String, nullable=True)  # Armazena o caminho ou URL da imagem
     weeks_won = Column(Integer, default=0)  # NOVO: total de semanas vencidas
+    weekly_points = relationship("WeeklyPoints", back_populates="user")
     created_challenges = relationship("Challenge", back_populates="creator")
 
 class CheckIn(Base):
