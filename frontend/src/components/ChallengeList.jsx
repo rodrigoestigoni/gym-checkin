@@ -1,82 +1,81 @@
 // frontend/src/components/ChallengeList.jsx
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEdit, faTrash } from "@fortawesome/free-solid-svg-icons";
 
 const ChallengeList = ({ user }) => {
   const [challenges, setChallenges] = useState([]);
-  const [challengesWithCount, setChallengesWithCount] = useState([]);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
-  const navigate = useNavigate();
 
-  // Busca os desafios criados pelo usuário
   useEffect(() => {
     fetch(`${API_URL}/challenges/`, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${user.token}`
-      }
+      headers: { Authorization: `Bearer ${user.token}` },
     })
-      .then(res => res.json())
-      .then(data => setChallenges(data))
-      .catch(err => console.error(err));
-  }, [API_URL, user.token]);
+      .then((res) => res.json())
+      .then(setChallenges)
+      .catch((err) => console.error(err));
+  }, [user, API_URL]);
 
-  // Função para buscar a contagem de participantes para um desafio
-  const getParticipantCount = async (challengeId) => {
-    try {
-      const res = await fetch(`${API_URL}/challenges/${challengeId}/participants/count`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`
+  const handleDelete = async (challengeId) => {
+    if (window.confirm("Tem certeza que deseja excluir este desafio?")) {
+      try {
+        const res = await fetch(`${API_URL}/challenges/${challengeId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        if (res.ok) {
+          setChallenges(challenges.filter((c) => c.id !== challengeId));
+        } else {
+          alert("Erro ao excluir desafio.");
         }
-      });
-      const data = await res.json();
-      return data.count;
-    } catch (err) {
-      console.error(err);
-      return 0;
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
-  // Para cada desafio, busque a contagem e armazene em challengesWithCount
-  useEffect(() => {
-    const loadCounts = async () => {
-      const updated = await Promise.all(
-        challenges.map(async (ch) => {
-          const count = await getParticipantCount(ch.id);
-          return { ...ch, participantCount: count };
-        })
-      );
-      setChallengesWithCount(updated);
-    };
-    if(challenges.length > 0) {
-      loadCounts();
-    }
-  }, [challenges]);
-
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Meus desafios</h2>
-      {challengesWithCount.length === 0 ? (
+      <h2 className="text-2xl font-bold mb-4">Meus Desafios</h2>
+      {challenges.length === 0 ? (
         <p>Nenhum desafio criado.</p>
       ) : (
-        <div className="space-y-4">
-          {challengesWithCount.map(ch => (
-            <div key={ch.id} className="border p-4 rounded shadow flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-xl">{ch.title}</h3>
-                <p className="text-sm text-gray-600">Código: {ch.code}</p>
-                <p className="mt-1">Participantes: {ch.participantCount}</p>
-              </div>
-              <button
-                onClick={() => navigate(`/challenges/${ch.id}`)}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Ver detalhes
-              </button>
-            </div>
-          ))}
-        </div>
+        <ul className="space-y-4">
+          {challenges.map((c) => {
+            const now = new Date();
+            const startDate = new Date(c.start_date);
+            const canEditOrDelete = startDate > now;
+            return (
+              <li key={c.id} className="border p-4 rounded shadow">
+                <h3 className="font-bold text-xl">{c.title}</h3>
+                <p>{c.description}</p>
+                <p>Modalidade: {c.modality}</p>
+                <p>Meta: {c.target}</p>
+                <p>Início: {startDate.toLocaleDateString()}</p>
+                <p>Duração: {c.duration_days} dias</p>
+                {canEditOrDelete && (
+                  <div className="mt-2 flex space-x-2">
+                    <Link
+                      to={`/challenges/edit/${c.id}`}
+                      className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 flex items-center"
+                    >
+                      <FontAwesomeIcon icon={faEdit} className="mr-1" />
+                      Editar
+                    </Link>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 flex items-center"
+                    >
+                      <FontAwesomeIcon icon={faTrash} className="mr-1" />
+                      Excluir
+                    </button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

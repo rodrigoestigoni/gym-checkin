@@ -5,6 +5,14 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
+class Achievement(Base):
+    __tablename__ = "achievements"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String)  # ex.: "Maratonista", "Leitor Voraz"
+    description = Column(Text)
+    earned_at = Column(DateTime, default=func.now())
+
 class WeeklyPoints(Base):
     __tablename__ = "weekly_points"
     id = Column(Integer, primary_key=True, index=True)
@@ -35,6 +43,7 @@ class CheckIn(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     duration = Column(Float, nullable=True)  # duração do treino em minutos
     description = Column(Text, nullable=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=True)
 
 class WeeklyUpdate(Base):
     __tablename__ = "weekly_updates"

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -121,28 +121,31 @@ def update_profile(
     return current_user
 
 @router.post("/challenges/", response_model=schemas.Challenge)
-def create_challenge(challenge: schemas.ChallengeCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+def create_challenge(
+    challenge: schemas.ChallengeCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
     data = challenge.dict()
     data["created_by"] = current_user.id
-    # Se o usuário informou start_date e duration_days mas não end_date, calcule end_date:
     if data.get("start_date") and data.get("duration_days") and not data.get("end_date"):
         data["end_date"] = data["start_date"] + timedelta(days=data["duration_days"] - 1)
-    # Se informou start_date e end_date mas não duration_days, calcule a duração:
-    if data.get("start_date") and data.get("end_date") and not data.get("duration_days"):
-        data["duration_days"] = (data["end_date"].date() - data["start_date"].date()).days + 1
     db_challenge = models.Challenge(**data)
     db.add(db_challenge)
     db.commit()
     db.refresh(db_challenge)
+
+    # Adiciona o criador como participante aprovado
+    participant = models.ChallengeParticipant(
+        challenge_id=db_challenge.id,
+        user_id=current_user.id,
+        approved=True
+    )
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+
     return db_challenge
-
-
-@router.get("/challenges/{challenge_id}/participants/count")
-def count_participants(challenge_id: int, db: Session = Depends(get_db)):
-    count = db.query(models.ChallengeParticipant).filter(
-        models.ChallengeParticipant.challenge_id == challenge_id
-    ).count()
-    return {"count": count}
 
 
 @router.get("/challenges/", response_model=list[schemas.Challenge])
@@ -234,12 +237,17 @@ def list_pending_participants(challenge_id: int, db: Session = Depends(get_db), 
     return pending
 
 @router.post("/challenges/{challenge_id}/approve", response_model=schemas.ChallengeParticipant)
-def approve_participant(challenge_id: int, participant_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+def approve_participant(
+    challenge_id: int,
+    request: schemas.ApproveRequest,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
     challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
     if not challenge or challenge.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Acesso negado")
     participant = db.query(models.ChallengeParticipant).filter(
-        models.ChallengeParticipant.id == participant_id,
+        models.ChallengeParticipant.id == request.participant_id,
         models.ChallengeParticipant.challenge_id == challenge_id
     ).first()
     if not participant:
@@ -249,14 +257,105 @@ def approve_participant(challenge_id: int, participant_id: int, db: Session = De
     db.refresh(participant)
     return participant
 
-@router.get("/challenges/{challenge_id}/ranking", response_model=list[schemas.ChallengeParticipant])
-def challenge_ranking(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    # Retorna os participantes aprovados ordenados por progress (descendente)
+@router.get("/challenges/{challenge_id}/ranking")
+def challenge_ranking(challenge_id: int, period: str = "weekly", db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    participation = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id,
+        models.ChallengeParticipant.approved == True
+    ).first()
+    if not participation:
+        raise HTTPException(status_code=403, detail="Você não participa deste desafio")
+    
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+
     participants = db.query(models.ChallengeParticipant).filter(
         models.ChallengeParticipant.challenge_id == challenge_id,
         models.ChallengeParticipant.approved == True
-    ).order_by(models.ChallengeParticipant.progress.desc()).all()
-    return participants
+    ).options(joinedload(models.ChallengeParticipant.user)).all()
+
+    if period == "weekly":
+        today = datetime.utcnow().date()
+        start_of_week = today - timedelta(days=today.weekday() + 1)  # Domingo
+        start_dt = datetime.combine(start_of_week, datetime.min.time())
+        end_dt = datetime.utcnow()
+
+        checkins = db.query(models.CheckIn).filter(
+            models.CheckIn.challenge_id == challenge_id,
+            models.CheckIn.timestamp >= start_dt,
+            models.CheckIn.timestamp <= end_dt
+        ).all()
+        checkin_counts = {}
+        for c in checkins:
+            checkin_counts[c.user_id] = checkin_counts.get(c.user_id, 0) + 1
+
+        ranked = sorted(participants, key=lambda p: checkin_counts.get(p.user_id, 0), reverse=True)
+    else:  # overall
+        ranked = sorted(participants, key=lambda p: p.progress, reverse=True)
+
+    current_rank = 1
+    previous_score = None
+    podium = []
+    others = []
+    for i, p in enumerate(ranked):
+        score = checkin_counts.get(p.user_id, 0) if period == "weekly" else p.progress
+        if i > 0 and score < previous_score:
+            current_rank = i + 1
+        previous_score = score
+        user_data = {
+            "id": p.user.id,
+            "username": p.user.username,
+            "profile_image": p.user.profile_image,
+            "weekly_score": score,
+            "rank": current_rank
+        }
+        if current_rank <= 3:
+            podium.append(user_data)
+        else:
+            others.append(user_data)
+
+    return {"podium": podium, "others": others, "title": challenge.title}
+
+@router.post("/challenges/{challenge_id}/checkin", response_model=schemas.CheckIn)
+def create_challenge_checkin(
+    challenge_id: int,
+    checkin: schemas.CheckInCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    # Verifica se o desafio existe
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+
+    # Verifica se o usuário participa do desafio e está aprovado
+    participation = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id,
+        models.ChallengeParticipant.approved == True
+    ).first()
+    if not participation:
+        raise HTTPException(status_code=403, detail="Você não participa deste desafio ou não foi aprovado")
+
+    # Garante que o check-in é para o usuário atual
+    if checkin.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Não autorizado a criar check-in para outro usuário")
+
+    # Cria o check-in vinculado ao desafio
+    checkin_data = checkin.dict()
+    checkin_data["challenge_id"] = challenge_id
+    db_checkin = models.CheckIn(**checkin_data)
+    db.add(db_checkin)
+
+    # Atualiza o progresso do participante (incrementa em 1 para cada check-in)
+    participation.progress += 1
+    db.commit()
+    db.refresh(db_checkin)
+    db.refresh(participation)
+
+    return db_checkin
 
 @router.get("/challenges/invite/{code}", response_model=schemas.Challenge)
 def get_challenge_by_code(code: str, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
@@ -318,7 +417,9 @@ def all_challenge_invitations(db: Session = Depends(get_db), current_user: schem
         models.Challenge.created_by == current_user.id
     ).all()
     created_ids = [c.id for c in created_challenges]
-    pending = db.query(models.ChallengeParticipant).filter(
+    pending = db.query(models.ChallengeParticipant).options(
+        joinedload(models.ChallengeParticipant.user)
+    ).filter(
         models.ChallengeParticipant.challenge_id.in_(created_ids),
         models.ChallengeParticipant.approved == False
     ).all()

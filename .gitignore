@@ -35,6 +35,10 @@ logs/
 debug.log
 out.log
 
+*.bak
+*.tmp
+src/old/
+
 # Editor/IDE
 .vscode/
 *.swp
