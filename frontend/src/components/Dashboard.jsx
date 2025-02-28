@@ -13,10 +13,9 @@ import {
   faPlus,
   faFire
 } from '@fortawesome/free-solid-svg-icons';
-import { api } from "../services/api";
 
 const Dashboard = ({ user }) => {
-  const [weeklyCheckins, setWeeklyCheckins] = useState([]);
+  // Estados básicos
   const [weekData, setWeekData] = useState([]);
   const [stats, setStats] = useState({
     totalCheckins: 0,
@@ -27,161 +26,234 @@ const Dashboard = ({ user }) => {
     points: 0,
     ranking: 0
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const MIN_TRAINING_DAYS = 3;
+  
+  // Contador para debug - evitar múltiplas chamadas
+  const [fetchCount, setFetchCount] = useState(0);
 
   useEffect(() => {
-    const [loading, setLoading] = useState(false);
-
-    if (loading || !user) return;
+    if (!user?.id) return;
     
-    const fetchCheckins = async () => {
+    let isActive = true;
+    const controller = new AbortController();
+    
+    const fetchAllData = async () => {
       try {
-        const res = await api.getWeeklyCheckins(user.id, user.token);
-        if (res.ok) {
-          const data = await res.json();
-          setWeeklyCheckins(data);
-        }
-      } catch (err) {
-        console.error("Erro ao buscar checkins:", err);
-      }
-    };
-
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        const allCheckinsRes = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:8000"}/users/${user.id}/checkins/?skip=0&limit=100`, {
-          headers: { Authorization: `Bearer ${user.token}` },
+        // Evitar múltiplas chamadas (para debug)
+        setFetchCount(prev => {
+          if (prev > 0) console.log("Prevenindo múltiplas chamadas - já chamado", prev, "vezes");
+          return prev + 1;
         });
         
-        if (allCheckinsRes.ok) {
-          const allCheckins = await allCheckinsRes.json();
-          
-          // Buscar o ranking
-          const rankingRes = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:8000"}/ranking/overall`);
-          let userRanking = 0;
-          
-          if (rankingRes.ok) {
-            const rankingData = await rankingRes.json();
-            const foundUser = rankingData.overall?.find(u => u.id === user.id);
-            userRanking = foundUser ? rankingData.overall.indexOf(foundUser) + 1 : 0;
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+        
+        // Primeira busca: checkins da semana
+        const weeklyRes = await fetch(
+          `${API_URL}/users/${user.id}/checkins/week/?week_offset=0`, 
+          {
+            headers: { 
+              "Authorization": `Bearer ${user.token}`,
+              "Cache-Control": "no-cache" 
+            },
+            signal: controller.signal
           }
-          
-          // Calcular estatísticas
-          // 1. Total de checkins
-          const totalCheckins = allCheckins.length;
-          
-          // 2. Checkins desta semana
-          const today = new Date();
-          const startOfWeek = new Date(today);
-          startOfWeek.setDate(today.getDate() - today.getDay()); // Primeiro dia da semana (Domingo)
-          startOfWeek.setHours(0, 0, 0, 0);
-          
-          const checkinsDaysMap = new Map(); // Para calcular sequências
-          
-          allCheckins.forEach(checkin => {
-            const date = new Date(checkin.timestamp);
-            const dateString = date.toDateString();
-            checkinsDaysMap.set(dateString, true);
+        );
+        
+        if (!weeklyRes.ok) throw new Error(`Erro ao buscar checkins da semana: ${weeklyRes.status}`);
+        
+        const weeklyData = await weeklyRes.json();
+        
+        if (!isActive) return;
+        
+        // Processar dados da semana
+        const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+        const weekProcessed = days.map((day, index) => {
+          const dayCheckins = weeklyData.filter((ci) => {
+            const date = new Date(ci.timestamp);
+            return date.getDay() === index;
           });
+          return { day, checkins: dayCheckins };
+        });
+        
+        // Atualizar os dados da semana
+        setWeekData(weekProcessed);
+        
+        // Segunda busca: todos os checkins para estatísticas
+        const allCheckinsRes = await fetch(
+          `${API_URL}/users/${user.id}/checkins/?skip=0&limit=100`,
+          {
+            headers: { 
+              "Authorization": `Bearer ${user.token}`,
+              "Cache-Control": "no-cache"
+            },
+            signal: controller.signal
+          }
+        );
+        
+        if (!allCheckinsRes.ok) throw new Error(`Erro ao buscar todos os checkins: ${allCheckinsRes.status}`);
+        
+        const allCheckins = await allCheckinsRes.json();
+        
+        if (!isActive) return;
+        
+        // Terceira busca: ranking
+        const rankingRes = await fetch(
+          `${API_URL}/ranking/overall`,
+          { 
+            headers: { "Cache-Control": "no-cache" },
+            signal: controller.signal
+          }
+        );
+        
+        if (!rankingRes.ok) throw new Error(`Erro ao buscar ranking: ${rankingRes.status}`);
+        
+        const rankingData = await rankingRes.json();
+        
+        if (!isActive) return;
+        
+        // Encontrar posição do usuário no ranking
+        let userRanking = 0;
+        const foundUser = rankingData.overall?.find(u => u.id === user.id);
+        if (foundUser) {
+          userRanking = rankingData.overall.indexOf(foundUser) + 1;
+        }
+        
+        // CALCULAR ESTATÍSTICAS
+        // 1. Total de checkins
+        const totalCheckins = allCheckins.length;
+        
+        // 2. Checkins desta semana (e mapa para streak)
+        const today = new Date();
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay()); // Domingo
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        const checkinsDaysMap = new Map();
+        
+        allCheckins.forEach(checkin => {
+          const date = new Date(checkin.timestamp);
+          const dateString = date.toDateString();
+          checkinsDaysMap.set(dateString, true);
+        });
+        
+        const thisWeekCheckins = allCheckins.filter(checkin => 
+          new Date(checkin.timestamp) >= startOfWeek
+        ).length;
+        
+        // 3. Checkins da semana passada
+        const startOfLastWeek = new Date(startOfWeek);
+        startOfLastWeek.setDate(startOfWeek.getDate() - 7);
+        const endOfLastWeek = new Date(startOfWeek);
+        endOfLastWeek.setSeconds(endOfLastWeek.getSeconds() - 1);
+        
+        const lastWeekCheckins = allCheckins.filter(checkin => {
+          const date = new Date(checkin.timestamp);
+          return date >= startOfLastWeek && date < endOfLastWeek;
+        }).length;
+        
+        // 4. Média por semana (últimas 4 semanas)
+        const weeklyCount = [thisWeekCheckins, lastWeekCheckins];
+        
+        for (let i = 2; i < 4; i++) {
+          const startOfPastWeek = new Date(startOfWeek);
+          startOfPastWeek.setDate(startOfWeek.getDate() - (7 * i));
+          const endOfPastWeek = new Date(startOfPastWeek);
+          endOfPastWeek.setDate(endOfPastWeek.getDate() + 7);
           
-          const thisWeekCheckins = allCheckins.filter(checkin => 
-            new Date(checkin.timestamp) >= startOfWeek
-          ).length;
-          
-          // 3. Checkins da semana passada
-          const startOfLastWeek = new Date(startOfWeek);
-          startOfLastWeek.setDate(startOfWeek.getDate() - 7);
-          const endOfLastWeek = new Date(startOfWeek);
-          endOfLastWeek.setSeconds(endOfLastWeek.getSeconds() - 1);
-          
-          const lastWeekCheckins = allCheckins.filter(checkin => {
+          const pastWeekCheckins = allCheckins.filter(checkin => {
             const date = new Date(checkin.timestamp);
-            return date >= startOfLastWeek && date < endOfLastWeek;
+            return date >= startOfPastWeek && date < endOfPastWeek;
           }).length;
           
-          // 4. Média por semana (últimas 4 semanas)
-          let weeklyCount = [thisWeekCheckins, lastWeekCheckins];
+          weeklyCount.push(pastWeekCheckins);
+        }
+        
+        const averagePerWeek = weeklyCount.reduce((sum, count) => sum + count, 0) / weeklyCount.length;
+        
+        // 5. Calcular sequência atual
+        let streakDays = 0;
+        let currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0);
+        
+        const maxLookback = 30;
+        
+        for (let i = 0; i < maxLookback; i++) {
+          const dateString = currentDate.toDateString();
           
-          for (let i = 2; i < 4; i++) {
-            const startOfPastWeek = new Date(startOfWeek);
-            startOfPastWeek.setDate(startOfWeek.getDate() - (7 * i));
-            const endOfPastWeek = new Date(startOfPastWeek);
-            endOfPastWeek.setDate(endOfPastWeek.getDate() + 7);
-            
-            const pastWeekCheckins = allCheckins.filter(checkin => {
-              const date = new Date(checkin.timestamp);
-              return date >= startOfPastWeek && date < endOfPastWeek;
-            }).length;
-            
-            weeklyCount.push(pastWeekCheckins);
+          if (checkinsDaysMap.has(dateString)) {
+            streakDays++;
+            currentDate.setDate(currentDate.getDate() - 1);
+          } else {
+            break;
           }
-          
-          const averagePerWeek = weeklyCount.reduce((sum, count) => sum + count, 0) / weeklyCount.length;
-          
-          // 5. Calcular sequência atual
-          let streakDays = 0;
-          let currentDate = new Date();
-          currentDate.setHours(0, 0, 0, 0);
-          
-          // Verificar até 30 dias atrás no máximo
-          const maxLookback = 30;
-          
-          for (let i = 0; i < maxLookback; i++) {
-            const dateString = currentDate.toDateString();
-            
-            if (checkinsDaysMap.has(dateString)) {
-              streakDays++;
-              currentDate.setDate(currentDate.getDate() - 1);
-            } else {
-              break;
-            }
-          }
-          
+        }
+        
+        // Atualizar as estatísticas
+        if (isActive) {
           setStats({
             totalCheckins,
             thisWeekCheckins,
             lastWeekCheckins,
-            averagePerWeek,
+            averagePerWeek: Math.round(averagePerWeek * 10) / 10,
             streakDays,
-            points: user.points,
+            points: user.points || 0,
             ranking: userRanking
           });
+          
+          setLoading(false);
         }
       } catch (err) {
-        console.error("Erro ao calcular estatísticas:", err);
-      } finally {
-        setLoading(false);
+        if (err.name !== 'AbortError') {
+          console.error("Erro ao buscar dados:", err);
+          if (isActive) {
+            setError("Erro ao carregar dados. Por favor, tente novamente.");
+            setLoading(false);
+          }
+        }
       }
     };
     
-    fetchCheckins();
-    fetchStats();
-  }, [user]);
+    fetchAllData();
+    
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [user?.id]); // Apenas user.id como dependência
 
-  useEffect(() => {
-    // Array de dias da semana (supondo domingo como início)
-    const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    // Para cada dia, filtra os checkins que ocorreram nesse dia (usando getDay)
-    const week = days.map((day, index) => {
-      const dayCheckins = weeklyCheckins.filter((ci) => {
-        const date = new Date(ci.timestamp);
-        return date.getDay() === index;
-      });
-      return {
-        day,
-        checkins: dayCheckins,
-      };
-    });
-    setWeekData(week);
-  }, [weeklyCheckins]);
-
-  const totalCheckins = weeklyCheckins.length;
-  const missing = totalCheckins < MIN_TRAINING_DAYS ? MIN_TRAINING_DAYS - totalCheckins : 0;
-  
-  // Calcular a tendência (em relação à semana passada)
-  const trend = stats.thisWeekCheckins - stats.lastWeekCheckins;
-  
   if (!user) return <p>Por favor, faça login.</p>;
+  
+  if (error) {
+    return (
+      <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded mb-4">
+        <p>{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="mt-2 bg-red-500 text-white px-4 py-2 rounded"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500 mb-2"></div>
+          <p className="text-gray-600 dark:text-gray-400">Carregando seus dados...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Cálculos finais
+  const totalWeeklyCheckins = weekData.reduce((total, day) => total + day.checkins.length, 0);
+  const missing = totalWeeklyCheckins < MIN_TRAINING_DAYS ? MIN_TRAINING_DAYS - totalWeeklyCheckins : 0;
+  const trend = stats.thisWeekCheckins - stats.lastWeekCheckins;
 
   return (
     <div className="p-4">
@@ -252,7 +324,7 @@ const Dashboard = ({ user }) => {
           Minha Semana
         </h2>
         
-        <div className="grid grid-cols-7 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 mb-4">
           {weekData.map((item, index) => (
             <div 
               key={index} 
@@ -280,7 +352,7 @@ const Dashboard = ({ user }) => {
         </div>
         
         <div className="text-center p-4 mt-4 rounded-lg bg-gray-50 dark:bg-gray-700">
-          {totalCheckins < MIN_TRAINING_DAYS ? (
+          {totalWeeklyCheckins < MIN_TRAINING_DAYS ? (
             <div className="flex flex-col items-center">
               <p className="text-xl text-orange-600 dark:text-orange-400 mb-2">
                 Faltam {missing} treino{missing > 1 ? 's' : ''} para atingir o mínimo da semana!
@@ -288,11 +360,11 @@ const Dashboard = ({ user }) => {
               <div className="w-full bg-gray-300 dark:bg-gray-600 rounded-full h-4 mt-2">
                 <div 
                   className="bg-orange-500 h-4 rounded-full transition-all duration-500"
-                  style={{ width: `${(totalCheckins / MIN_TRAINING_DAYS) * 100}%` }}
+                  style={{ width: `${(totalWeeklyCheckins / MIN_TRAINING_DAYS) * 100}%` }}
                 ></div>
               </div>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                {totalCheckins} de {MIN_TRAINING_DAYS} treinos completados
+                {totalWeeklyCheckins} de {MIN_TRAINING_DAYS} treinos completados
               </p>
             </div>
           ) : (
@@ -308,7 +380,7 @@ const Dashboard = ({ user }) => {
                 ></div>
               </div>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                {totalCheckins} de {MIN_TRAINING_DAYS} treinos completados
+                {totalWeeklyCheckins} de {MIN_TRAINING_DAYS} treinos completados
               </p>
             </div>
           )}
@@ -334,7 +406,8 @@ const Dashboard = ({ user }) => {
         </Link>
         
         <Link 
-          to="/challenges"
+          // to="/challenges"
+          to="/dashboard"
           className="bg-purple-500 hover:bg-purple-600 text-white rounded-lg p-4 flex items-center justify-center shadow transition-colors"
         >
           <FontAwesomeIcon icon={faTrophy} className="mr-2" />

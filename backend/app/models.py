@@ -5,14 +5,6 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
-class Achievement(Base):
-    __tablename__ = "achievements"
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    title = Column(String)  # ex.: "Maratonista", "Leitor Voraz"
-    description = Column(Text)
-    earned_at = Column(DateTime, default=func.now())
-
 class WeeklyPoints(Base):
     __tablename__ = "weekly_points"
     id = Column(Integer, primary_key=True, index=True)
@@ -87,3 +79,35 @@ class ChallengeParticipant(Base):
     approved = Column(Boolean, default=False)
     challenge = relationship("Challenge", back_populates="participants")
     user = relationship("User", backref="challenge_participations")
+
+class Achievement(Base):
+    __tablename__ = "achievements"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    icon = Column(String)
+
+class UserAchievement(Base):
+    __tablename__ = "user_achievements"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    achievement_id = Column(Integer, ForeignKey("achievements.id"))
+    earned_at = Column(DateTime, default=func.now())
+    
+    user = relationship("User", backref="achievements")
+    achievement = relationship("Achievement")
+
+class Notification(Base):
+    __tablename__ = "notifications"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    related_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=True)
+    type = Column(String, nullable=False)  # "invite", "checkin", "achievement", etc.
+    message = Column(Text, nullable=False)
+    read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=func.now())
+    
+    user = relationship("User", foreign_keys=[user_id], backref="notifications")
+    related_user = relationship("User", foreign_keys=[related_user_id])
+    challenge = relationship("Challenge")

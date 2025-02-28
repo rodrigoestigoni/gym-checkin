@@ -270,6 +270,49 @@ def approve_participant(
     db.refresh(participant)
     return participant
 
+@router.get("/challenges/{challenge_id}/activity")
+def get_challenge_activity(challenge_id: int, limit: int = 10, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    # Verifica se o desafio existe
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+    
+    # Verifica se o usuário participa do desafio ou é o criador
+    participation = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id,
+        models.ChallengeParticipant.approved == True
+    ).first()
+    
+    if not participation and challenge.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Você não participa deste desafio")
+    
+    # SOLUÇÃO TEMPORÁRIA:
+    # Como seus check-ins atuais não têm challenge_id, buscaremos check-ins gerais 
+    # e assumiremos que pertencem ao desafio para propósitos de demonstração
+    recent_checkins = db.query(models.CheckIn).filter(
+        models.CheckIn.user_id == current_user.id
+    ).order_by(models.CheckIn.timestamp.desc()).limit(limit).all()
+    
+    # Formata os resultados
+    activity = []
+    for checkin in recent_checkins:
+        # Busca o usuário relacionado ao check-in
+        user = db.query(models.User).filter(models.User.id == checkin.user_id).first()
+        activity.append({
+            "id": checkin.id,
+            "user_id": checkin.user_id,
+            "username": user.username if user else "Usuário desconhecido",
+            "profile_image": user.profile_image if user else None,
+            "timestamp": checkin.timestamp,
+            "duration": checkin.duration,
+            "description": checkin.description,
+            "type": "checkin"
+        })
+    
+    # Limita ao número solicitado
+    return activity
+    
 @router.get("/challenges/{challenge_id}/ranking")
 def challenge_ranking(challenge_id: int, period: str = "weekly", db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
     participation = db.query(models.ChallengeParticipant).filter(
@@ -557,3 +600,78 @@ def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user:
         raise HTTPException(status_code=403, detail="Não autorizado")
     crud.delete_checkin(db, checkin)
     return
+
+# Notificações
+@router.get("/notifications/", response_model=list[schemas.Notification])
+def get_notifications(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    return db.query(models.Notification).filter(
+        models.Notification.user_id == current_user.id
+    ).order_by(models.Notification.created_at.desc()).all()
+
+@router.put("/notifications/{notification_id}/read", response_model=schemas.Notification)
+def mark_notification_read(notification_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    notification = db.query(models.Notification).filter(
+        models.Notification.id == notification_id,
+        models.Notification.user_id == current_user.id
+    ).first()
+    
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notificação não encontrada")
+    
+    notification.read = True
+    db.commit()
+    db.refresh(notification)
+    return notification
+
+# Conquistas
+@router.get("/achievements/", response_model=list[schemas.UserAchievement])
+def get_user_achievements(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    return db.query(models.UserAchievement).filter(
+        models.UserAchievement.user_id == current_user.id
+    ).all()
+
+# Função auxiliar para criar notificações
+def create_notification(db: Session, user_id: int, message: str, type: str, related_user_id: int = None, challenge_id: int = None):
+    notification = models.Notification(
+        user_id=user_id,
+        related_user_id=related_user_id,
+        challenge_id=challenge_id,
+        type=type,
+        message=message
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+    return notification
+
+# Modificar a rota de check-in para acionar notificações
+@router.post("/challenges/{challenge_id}/checkin", response_model=schemas.CheckIn)
+def create_challenge_checkin(
+    challenge_id: int,
+    checkin: schemas.CheckInCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    # O código existente para criar check-in...
+    
+    # Após criar o check-in, buscar o desafio e outros participantes
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if challenge:
+        # Notificar outros participantes
+        participants = db.query(models.ChallengeParticipant).filter(
+            models.ChallengeParticipant.challenge_id == challenge_id,
+            models.ChallengeParticipant.user_id != current_user.id,
+            models.ChallengeParticipant.approved == True
+        ).all()
+        
+        for participant in participants:
+            create_notification(
+                db,
+                participant.user_id,
+                f"{current_user.username} fez um check-in no desafio '{challenge.title}'",
+                "checkin",
+                related_user_id=current_user.id,
+                challenge_id=challenge_id
+            )
+    
+    return db_checkin  # Retorne o check-in criado

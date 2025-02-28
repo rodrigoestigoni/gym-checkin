@@ -115,3 +115,41 @@ class ChallengeParticipantResponse(BaseModel):
 
 class ApproveRequest(BaseModel):
     participant_id: int
+
+class AchievementBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    icon: Optional[str] = None
+
+class Achievement(AchievementBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+class UserAchievementBase(BaseModel):
+    user_id: int
+    achievement_id: int
+
+class UserAchievement(UserAchievementBase):
+    id: int
+    earned_at: datetime
+    achievement: Achievement
+
+    class Config:
+        orm_mode = True
+
+class NotificationBase(BaseModel):
+    user_id: int
+    related_user_id: Optional[int] = None
+    challenge_id: Optional[int] = None
+    type: str
+    message: str
+
+class Notification(NotificationBase):
+    id: int
+    read: bool
+    created_at: datetime
+
+    class Config:
+        orm_mode = True

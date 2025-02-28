@@ -1,52 +1,96 @@
-// frontend/src/components/ChallengeRanking.jsx
+// ChallengeRanking.jsx
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faTrophy, faMedal } from '@fortawesome/free-solid-svg-icons';
+import { faTrophy, faMedal, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { useChallenge } from '../contexts/ChallengeContext';
 
 const ChallengeRanking = ({ user }) => {
   const { challengeId } = useParams();
-  const [selectedChallenge, setSelectedChallenge] = useState(null);
-  const [rankingData, setRankingData] = useState(null);
+  const { activeChallenge } = useChallenge();
+  const [rankingData, setRankingData] = useState({
+    podium: [],
+    others: []
+  });
   const [activeTab, setActiveTab] = useState("weekly");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
-    if (challengeId && user) {
-      fetch(`${API_URL}/challenge-participation/`, {
-        headers: { Authorization: `Bearer ${user.token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          const challenge = data.find((p) => p.challenge.id === parseInt(challengeId));
-          if (challenge) setSelectedChallenge(challenge.challenge);
-        })
-        .catch((err) => console.error(err));
+    let isMounted = true;
+    
+    const fetchRanking = async () => {
+      if (!challengeId || !user?.token) return;
+      
+      try {
+        console.log(`Buscando ranking para desafio ${challengeId} com período ${activeTab}`);
+        const res = await fetch(`${API_URL}/challenges/${challengeId}/ranking?period=${activeTab}`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        
+        if (!isMounted) return;
+        
+        if (res.ok) {
+          const data = await res.json();
+          console.log("Dados de ranking recebidos:", data);
+          
+          // Garantir que data tem a estrutura esperada
+          const formattedData = {
+            podium: Array.isArray(data.podium) ? data.podium : [],
+            others: Array.isArray(data.others) ? data.others : []
+          };
+          
+          setRankingData(formattedData);
+          setError(null);
+        } else {
+          console.error("Erro ao buscar ranking:", await res.text());
+          setError("Erro ao carregar ranking");
+        }
+      } catch (err) {
+        console.error("Erro ao buscar ranking:", err);
+        if (isMounted) {
+          setError("Erro de conexão");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    setLoading(true);
+    fetchRanking();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [challengeId, activeTab, user, API_URL]);
+
+  const handleTabChange = (tab) => {
+    if (tab !== activeTab) {
+      setActiveTab(tab);
     }
-  }, [challengeId, user, API_URL]);
+  };
 
-  useEffect(() => {
-    if (selectedChallenge && user) {
-      fetch(`${API_URL}/challenges/${selectedChallenge.id}/ranking?period=${activeTab}`, {
-        headers: { Authorization: `Bearer ${user.token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => setRankingData(data))
-        .catch((err) => console.error(err));
-    }
-  }, [selectedChallenge, activeTab, user, API_URL]);
-
-  if (!user) return <p>Por favor, faça login.</p>;
-
-  if (!selectedChallenge) {
+  if (loading) {
     return (
-      <div className="p-4">
-        <h2 className="text-2xl font-bold mb-4">Ranking de Desafios</h2>
-        <p>Selecione um desafio nos seus desafios participados para ver o ranking.</p>
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="bg-red-100 dark:bg-red-900 dark:bg-opacity-30 border border-red-400 text-red-700 dark:text-red-400 px-4 py-3 rounded flex items-center">
+        <FontAwesomeIcon icon={faExclamationTriangle} className="mr-2" />
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  // Prepara os dados do pódio
   const groupedPodium = rankingData?.podium?.reduce((acc, user) => {
     const rank = user.rank;
     if (!acc[rank]) acc[rank] = [];
@@ -60,7 +104,7 @@ const ChallengeRanking = ({ user }) => {
       <div className="flex flex-wrap justify-center gap-2">
         {users.map((user) => (
           <div key={user.id} className="flex flex-col items-center">
-            <div className="bg-white p-2 rounded-full border shadow h-20 w-20 sm:h-24 sm:w-24">
+            <div className="bg-white dark:bg-gray-700 p-2 rounded-full border shadow h-20 w-20 sm:h-24 sm:w-24">
               {user.profile_image ? (
                 <img
                   src={user.profile_image}
@@ -68,13 +112,13 @@ const ChallengeRanking = ({ user }) => {
                   className="h-full w-full rounded-full object-cover"
                 />
               ) : (
-                <div className="h-full w-full rounded-full bg-gray-300 flex items-center justify-center text-xl">
+                <div className="h-full w-full rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xl">
                   {user.username?.charAt(0).toUpperCase() || ""}
                 </div>
               )}
             </div>
             <div className="text-xs mt-1">{user.username}</div>
-            <div className="text-[10px] text-gray-500">
+            <div className="text-[10px] text-gray-500 dark:text-gray-400">
               {user.weekly_score || 0} check-ins
             </div>
           </div>
@@ -83,72 +127,79 @@ const ChallengeRanking = ({ user }) => {
     </div>
   );
 
+  // Resto do componente...
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <div className="flex items-center mb-4">
-        <Link to="/challenges" className="text-blue-500 hover:underline mr-4">
-          <FontAwesomeIcon icon={faArrowLeft} className="mr-1" />
-          Voltar aos Desafios
-        </Link>
-        <h2 className="text-3xl font-bold">Ranking: {selectedChallenge.title}</h2>
+      <div className="flex justify-center mb-6">
+        <div className="flex border-b mb-4 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <button
+            className={`px-4 py-2 focus:outline-none flex items-center ${
+              activeTab === "weekly" ? "bg-green-500 text-white" : "text-gray-600 dark:text-gray-300"
+            }`}
+            onClick={() => handleTabChange("weekly")}
+          >
+            <FontAwesomeIcon icon={faTrophy} className="mr-2" />
+            Semanal
+          </button>
+          <button
+            className={`px-4 py-2 focus:outline-none flex items-center ${
+              activeTab === "overall" ? "bg-green-500 text-white" : "text-gray-600 dark:text-gray-300"
+            }`}
+            onClick={() => handleTabChange("overall")}
+          >
+            <FontAwesomeIcon icon={faMedal} className="mr-2" />
+            Geral
+          </button>
+        </div>
       </div>
-      <div className="flex border-b mb-4">
-        <button
-          className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${
-            activeTab === "weekly" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("weekly")}
-        >
-          <FontAwesomeIcon icon={faTrophy} className="mr-2" />
-          Semanal
-        </button>
-        <button
-          className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${
-            activeTab === "overall" ? "border-b-2 border-green-500 font-bold" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("overall")}
-        >
-          <FontAwesomeIcon icon={faMedal} className="mr-2" />
-          Geral
-        </button>
-      </div>
-      {rankingData ? (
+
+      {(!rankingData.podium?.length && !rankingData.others?.length) ? (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
+          <p className="text-gray-500 dark:text-gray-400">
+            Nenhum participante no ranking {activeTab === "weekly" ? "desta semana" : "geral"}.
+          </p>
+        </div>
+      ) : (
         <>
           <div className="flex flex-col sm:flex-row sm:justify-center items-center mb-8 space-y-4 sm:space-y-0 sm:space-x-8">
             {Object.keys(groupedPodium)
               .sort((a, b) => a - b)
               .map((rank) => renderPodiumGroup(rank, groupedPodium[rank]))}
           </div>
-          {rankingData.others.length > 0 && (
+
+          {rankingData.others?.length > 0 && (
             <>
               <h2 className="text-2xl font-bold mb-4 text-center">Outros Participantes</h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white shadow rounded text-sm">
-                  <thead>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="py-2 border px-2">Posição</th>
-                      <th className="py-2 border px-2">Usuário</th>
-                      <th className="py-2 border px-2">Imagem</th>
-                      <th className="py-2 border px-2">Check-ins</th>
+                      <th className="py-3 px-4 text-left">Posição</th>
+                      <th className="py-3 px-4 text-left">Usuário</th>
+                      <th className="py-3 px-4 text-center">Check-ins</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rankingData.others.map((user) => (
-                      <tr key={user.id}>
-                        <td className="py-2 border text-center px-2">{user.rank}</td>
-                        <td className="py-2 border text-center px-2">{user.username}</td>
-                        <td className="py-2 border text-center px-2">
-                          {user.profile_image ? (
-                            <img
-                              src={user.profile_image}
-                              alt={user.username}
-                              className="h-8 w-8 rounded-full mx-auto object-cover"
-                            />
-                          ) : (
-                            <span className="text-gray-500">Sem imagem</span>
-                          )}
+                      <tr key={user.id} className="border-b dark:border-gray-700">
+                        <td className="py-3 px-4">{user.rank}</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center">
+                            {user.profile_image ? (
+                              <img
+                                src={user.profile_image}
+                                alt={user.username}
+                                className="h-8 w-8 rounded-full mr-2 object-cover"
+                              />
+                            ) : (
+                              <div className="h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center mr-2">
+                                {user.username?.charAt(0).toUpperCase() || ""}
+                              </div>
+                            )}
+                            <span>{user.username}</span>
+                          </div>
                         </td>
-                        <td className="py-2 border text-center px-2">{user.weekly_score || 0}</td>
+                        <td className="py-3 px-4 text-center">{user.weekly_score || 0}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -157,8 +208,6 @@ const ChallengeRanking = ({ user }) => {
             </>
           )}
         </>
-      ) : (
-        <p className="text-center">Carregando ranking...</p>
       )}
     </div>
   );

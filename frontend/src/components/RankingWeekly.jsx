@@ -61,10 +61,41 @@ const RankingWeekly = () => {
         <p className="text-center text-gray-500">Nenhum usuário com mais de 1 treino esta semana.</p>
       ) : (
         <>
-          <div className="flex flex-col sm:flex-row sm:justify-center items-center mb-8 space-y-4 sm:space-y-0 sm:space-x-8">
+          <div className="flex flex-col sm:flex-row sm:justify-center items-center mb-8 space-y-6 sm:space-y-0">
             {Object.keys(groupedPodium)
               .sort((a, b) => a - b)
-              .map((rank) => renderPodiumGroup(rank, groupedPodium[rank]))}
+              .map((rank) => (
+                <div key={rank} className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 mx-2 text-center">
+                  <div className="absolute -top-3 left-0 right-0 mx-auto w-fit bg-yellow-400 text-gray-900 px-3 py-1 rounded-full font-bold">
+                    {rank}º Lugar
+                  </div>
+                  <div className="mt-4 pt-2 flex flex-wrap justify-center gap-4">
+                    {groupedPodium[rank].map((user) => (
+                      <div key={user.id} className="flex flex-col items-center">
+                        <div className="relative">
+                          <div className="bg-white p-2 rounded-full border-4 border-yellow-400 shadow-lg h-24 w-24 sm:h-28 sm:w-28">
+                            {user.profile_image ? (
+                              <img
+                                src={user.profile_image}
+                                alt={user.username}
+                                className="h-full w-full rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full rounded-full bg-gray-300 flex items-center justify-center text-2xl font-bold">
+                                {user.username?.charAt(0).toUpperCase() || ""}
+                              </div>
+                            )}
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 bg-green-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">
+                            {user.weekly_score}
+                          </div>
+                        </div>
+                        <div className="text-sm mt-2 font-semibold">{user.username}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
           </div>
 
           {others.length > 0 && (

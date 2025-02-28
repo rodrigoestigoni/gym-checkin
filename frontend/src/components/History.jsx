@@ -11,120 +11,157 @@ import {
   faTrash
 } from '@fortawesome/free-solid-svg-icons';
 import EditCheckinForm from "./EditCheckinForm";
-import { api } from "../services/api";
 
 const History = ({ user }) => {
-  const [checkins, setCheckins] = useState([]);
+  // Uma única fonte de dados para evitar múltiplas chamadas
+  const [allCheckins, setAllCheckins] = useState([]);
+  
+  // Estados de UI
   const [editingId, setEditingId] = useState(null);
   const [page, setPage] = useState(0);
-  const [view, setView] = useState("calendar"); // "calendar" ou "list"
+  const [view, setView] = useState("calendar");
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [monthCheckins, setMonthCheckins] = useState([]);
-  const [selectedCheckins, setSelectedCheckins] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedCheckins, setSelectedCheckins] = useState([]);
+  const [loading, setLoading] = useState(true);
   const limit = 10;
   
-  const fetchCheckins = async () => {
-    if (!user) return;
+  // Contador para evitar chamadas infinitas - apenas para debug
+  const [fetchCounter, setFetchCounter] = useState(0);
+
+  // Função para buscar dados - será chamada UMA ÚNICA VEZ
+  useEffect(() => {
+    if (!user?.id) return;
     
-    try {
-      const res = await api.getCheckins(user.id, user.token, page * limit, limit);
-      if (res.ok) {
-        const data = await res.json();
-        setCheckins(data);
+    // Flag para limpeza
+    let isActive = true;
+    let controller = new AbortController();
+    
+    const fetchAllData = async () => {
+      if (fetchCounter > 0) {
+        console.log("Evitando chamada adicional - fetchCounter:", fetchCounter);
+        return;
       }
-    } catch (err) {
-      console.error("Erro ao buscar checkins:", err);
-    }
+      
+      try {
+        setLoading(true);
+        setFetchCounter(prev => prev + 1);
+        
+        // Usar uma URL constante
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+        
+        // Usar fetch diretamente com controle de cache
+        const response = await fetch(
+          `${API_URL}/users/${user.id}/checkins/?skip=0&limit=100`, 
+          {
+            headers: { 
+              Authorization: `Bearer ${user.token}`,
+              "Cache-Control": "no-cache"  
+            },
+            signal: controller.signal
+          }
+        );
+        
+        if (!response.ok) throw new Error("Failed to fetch data");
+        
+        const data = await response.json();
+        
+        // Apenas atualiza se o componente ainda estiver montado
+        if (isActive) {
+          console.log("Dados buscados com sucesso, total:", data.length);
+          setAllCheckins(data);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error("Erro ao buscar dados:", err);
+          if (isActive) setLoading(false);
+        }
+      }
+    };
+    
+    fetchAllData();
+    
+    // Função de limpeza
+    return () => {
+      console.log("Limpando recursos do History");
+      isActive = false;
+      controller.abort();
+    };
+  }, [user?.id]); // APENAS user.id como dependência
+  
+  // Funções derivadas de dados calculadas a partir de allCheckins
+  const getPagedCheckins = () => {
+    const start = page * limit;
+    const end = start + limit;
+    return allCheckins.slice(start, end);
   };
   
-  const fetchMonthCheckins = async () => {
-    const [loading, setLoading] = useState(false);
-    const [monthDataCache, setMonthDataCache] = useState({});
-    if (loading || !user) return;
-    const monthKey = `${currentDate.getFullYear()}-${currentDate.getMonth()}`;
-
-    if (monthDataCache[monthKey]) {
-      setMonthCheckins(monthDataCache[monthKey]);
-      return;
-    }
-    
+  const getMonthCheckins = () => {
     // Primeiro dia do mês atual
     const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
     // Último dia do mês atual
-    const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
     
-    try {
-      setLoading(true);
-
-      const res = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:8000"}/users/${user.id}/checkins/?skip=0&limit=100`, {
-        headers: { Authorization: `Bearer ${user.token}` },
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        // Filtrar para o mês atual
-        const filtered = data.filter(checkin => {
-          const checkinDate = new Date(checkin.timestamp);
-          return checkinDate >= startDate && checkinDate <= endDate;
-        });
-        setMonthDataCache(prev => ({
-          ...prev,
-          [monthKey]: filtered
-        }));
-        setMonthCheckins(filtered);
-      }
-    } catch (err) {
-      console.error("Erro ao buscar checkins do mês:", err);
-    } finally {
-      setLoading(false);
-    }
+    return allCheckins.filter(checkin => {
+      const checkinDate = new Date(checkin.timestamp);
+      return checkinDate >= startDate && checkinDate <= endDate;
+    });
   };
-
-  useEffect(() => {
-    fetchCheckins();
-  }, [user, page]);
   
-  useEffect(() => {
-    fetchMonthCheckins();
-  }, [user, currentDate.getFullYear(), currentDate.getMonth()]);
-  
+  // Handler para edição/deleção - atualiza o estado principal
   const handleEditSuccess = (updatedCheckin) => {
     if (!updatedCheckin) {
       // Checkin foi excluído
-      setCheckins(checkins.filter((ci) => ci.id !== editingId));
-      setMonthCheckins(monthCheckins.filter((ci) => ci.id !== editingId));
+      setAllCheckins(prevCheckins => 
+        prevCheckins.filter(ci => ci.id !== editingId)
+      );
     } else {
-      setCheckins(checkins.map((ci) => (ci.id === updatedCheckin.id ? updatedCheckin : ci)));
-      setMonthCheckins(monthCheckins.map((ci) => (ci.id === updatedCheckin.id ? updatedCheckin : ci)));
+      // Checkin foi atualizado
+      setAllCheckins(prevCheckins => 
+        prevCheckins.map(ci => ci.id === updatedCheckin.id ? updatedCheckin : ci)
+      );
     }
+    
     setEditingId(null);
     setSelectedDay(null);
     setSelectedCheckins([]);
   };
 
   const handleDeleteCheckin = async (checkinId) => {
-    if (window.confirm("Tem certeza que deseja excluir este checkin?")) {
-      try {
-        const res = await api.deleteCheckin(user.token, checkinId);
-        if (res.ok) {
-          setCheckins(checkins.filter((ci) => ci.id !== checkinId));
-          setMonthCheckins(monthCheckins.filter((ci) => ci.id !== checkinId));
-          
-          if (selectedDay) {
-            setSelectedCheckins(prevSelectedCheckins => 
-              prevSelectedCheckins.filter(ci => ci.id !== checkinId)
-            );
-          }
-        } else {
-          console.error("Erro ao excluir checkin");
+    if (!window.confirm("Tem certeza que deseja excluir este checkin?")) return;
+    
+    try {
+      // Usar o fetch diretamente para maior controle
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+      const response = await fetch(`${API_URL}/checkins/${checkinId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      
+      if (response.ok) {
+        // Atualiza o estado local sem fazer nova requisição
+        setAllCheckins(prevCheckins => 
+          prevCheckins.filter(ci => ci.id !== checkinId)
+        );
+        
+        // Limpa seleção se necessário
+        if (selectedDay) {
+          setSelectedCheckins(prevSelected => 
+            prevSelected.filter(ci => ci.id !== checkinId)
+          );
         }
-      } catch (err) {
-        console.error(err);
+      } else {
+        console.error("Erro ao excluir checkin:", response.statusText);
+        alert("Erro ao excluir checkin. Tente novamente.");
       }
+    } catch (err) {
+      console.error("Erro ao excluir checkin:", err);
+      alert("Erro ao excluir checkin. Tente novamente.");
     }
   };
   
+  // Funções auxiliares do calendário
   const getMonthName = (date) => {
     return date.toLocaleString('default', { month: 'long' });
   };
@@ -138,20 +175,41 @@ const History = ({ user }) => {
   };
   
   const prevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    setCurrentDate(prevDate => {
+      const newDate = new Date(prevDate);
+      newDate.setMonth(newDate.getMonth() - 1);
+      return newDate;
+    });
     setSelectedDay(null);
     setSelectedCheckins([]);
   };
   
   const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    setCurrentDate(prevDate => {
+      const newDate = new Date(prevDate);
+      newDate.setMonth(newDate.getMonth() + 1);
+      return newDate;
+    });
     setSelectedDay(null);
     setSelectedCheckins([]);
   };
   
+  // Seleção de dia no calendário
+  const handleDayClick = (day) => {
+    const dayCheckins = getMonthCheckins().filter(checkin => {
+      const checkinDate = new Date(checkin.timestamp);
+      return checkinDate.getDate() === day;
+    });
+    
+    setSelectedDay(day);
+    setSelectedCheckins(dayCheckins);
+  };
+  
+  // Renderiza calendário - derivado de dados, não estado
   const renderCalendar = () => {
     const daysInMonth = getDaysInMonth(currentDate);
     const firstDay = getFirstDayOfMonth(currentDate);
+    const monthCheckins = getMonthCheckins();
     const days = [];
     
     // Create empty cells for days before the first day of the month
@@ -161,7 +219,6 @@ const History = ({ user }) => {
     
     // Populate days of the month
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       const dayCheckins = monthCheckins.filter(checkin => {
         const checkinDate = new Date(checkin.timestamp);
         return checkinDate.getDate() === day;
@@ -172,14 +229,11 @@ const History = ({ user }) => {
           key={`day-${day}`} 
           className={`h-24 border p-1 relative cursor-pointer transition-colors hover:bg-green-50 dark:hover:bg-green-900 
                       ${selectedDay === day ? 'bg-green-100 dark:bg-green-800' : 'bg-white dark:bg-gray-700'}`}
-          onClick={() => {
-            setSelectedDay(day);
-            setSelectedCheckins(dayCheckins);
-          }}
+          onClick={() => handleDayClick(day)}
         >
           <div className="absolute top-1 left-1 font-bold">{day}</div>
           {dayCheckins.length > 0 && (
-            <div className="absolute top-1 right-1 flex items-center">
+            <div className="absolute bottom-1 right-1 sm:top-1 sm:right-1 flex items-center">
               <FontAwesomeIcon icon={faDumbbell} className="text-green-500" />
               <span className="ml-1 text-xs font-bold text-green-600 dark:text-green-400">{dayCheckins.length}</span>
             </div>
@@ -191,9 +245,11 @@ const History = ({ user }) => {
     return days;
   };
   
+  if (!user) return <p>Por favor, faça login.</p>;
+  
   return (
     <div className="p-4">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
         <h1 className="text-2xl font-bold">Histórico de Checkins</h1>
         <div className="flex space-x-2">
           <button 
@@ -217,7 +273,12 @@ const History = ({ user }) => {
         </div>
       </div>
       
-      {view === "calendar" ? (
+      {loading ? (
+        <div className="text-center p-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-green-500 mb-2"></div>
+          <p>Carregando dados...</p>
+        </div>
+      ) : view === "calendar" ? (
         <div className="bg-white dark:bg-gray-800 rounded shadow p-4">
           <div className="flex justify-between items-center mb-4">
             <button 
@@ -305,7 +366,7 @@ const History = ({ user }) => {
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded shadow p-4">
           <ul className="space-y-2">
-            {checkins.map((ci) => (
+            {getPagedCheckins().map((ci) => (
               <li key={ci.id} className="border p-3 rounded bg-white dark:bg-gray-700 shadow">
                 {editingId === ci.id ? (
                   <EditCheckinForm 
@@ -341,7 +402,7 @@ const History = ({ user }) => {
             ))}
           </ul>
           
-          {checkins.length === limit && (
+          {allCheckins.length > limit && (
             <div className="flex justify-between mt-4">
               <button 
                 disabled={page === 0} 
@@ -356,7 +417,12 @@ const History = ({ user }) => {
               </button>
               <button 
                 onClick={() => setPage(page + 1)} 
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-600 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+                disabled={(page + 1) * limit >= allCheckins.length}
+                className={`px-4 py-2 rounded ${
+                  (page + 1) * limit >= allCheckins.length
+                    ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed' 
+                    : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                }`}
               >
                 Próximo
               </button>
