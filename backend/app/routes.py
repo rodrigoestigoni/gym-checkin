@@ -78,6 +78,19 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = auth.create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
+@router.get("/users/{user_id}/checkins/period/")
+def get_checkins_by_period(
+    user_id: int, 
+    start_date: datetime, 
+    end_date: datetime, 
+    db: Session = Depends(get_db)
+):
+    return db.query(models.CheckIn).filter(
+        models.CheckIn.user_id == user_id,
+        models.CheckIn.timestamp >= start_date,
+        models.CheckIn.timestamp <= end_date
+    ).all()
+    
 ### Endpoint para obter checkins do usuário (lista paginada)
 @router.get("/users/{user_id}/checkins/", response_model=list[schemas.CheckIn])
 def get_checkins(user_id: int, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):

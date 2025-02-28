@@ -9,42 +9,57 @@ import History from "./components/History";
 import RankingTabs from "./components/RankingTabs";
 import PrivateRoute from "./components/PrivateRoute";
 import Profile from "./components/Profile";
-import ChallengesDashboard from "./components/ChallengesDashboard"; // nosso dashboard de desafios
+import ChallengesDashboard from "./components/ChallengesDashboard";
 import ChallengeEdit from "./components/ChallengeEdit";
 import ChallengeDetailByCode from "./components/ChallengeDetailByCode";
-import ChallengesDashboard from "./components/ChallengesDashboard";
+import ChallengeDetail from "./components/ChallengeDetail";
 import ChallengeRanking from "./components/ChallengeRanking";
 import ChallengeCheckinForm from "./components/ChallengeCheckinForm";
-
+import { useAuth } from "./services/api";
 
 const App = () => {
   const [user, setUser] = useState(undefined);
+  const { isTokenValid } = useAuth();
 
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      const parsedUser = JSON.parse(storedUser);
+      
+      // Verifica se o token ainda é válido
+      if (isTokenValid(parsedUser.token)) {
+        setUser(parsedUser);
+      } else {
+        // Token expirado, limpa o localStorage
+        localStorage.removeItem("user");
+        setUser(null);
+      }
     } else {
       setUser(null);
     }
-  }, []);
+  }, [isTokenValid]);
 
-  const storedDark = localStorage.getItem("darkMode");
-    if (storedDark === null) {
+  // Configuração do modo escuro (dark mode)
+  useEffect(() => {
+    const storedDark = localStorage.getItem("darkMode");
+    if (storedDark === "true" || storedDark === null) {
       document.documentElement.classList.add("dark");
       localStorage.setItem("darkMode", "true");
+    } else {
+      document.documentElement.classList.remove("dark");
     }
+  }, []);
 
   if (user === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center dark:bg-gray-900 dark:text-white">
         <p className="text-xl">Carregando...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 dark:text-white">
       <Header user={user} setUser={setUser} />
       <div className="container mx-auto p-4">
         <Routes>
