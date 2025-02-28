@@ -1,5 +1,5 @@
-// ChallengeHistory.jsx
-import React, { useEffect, useState } from "react";
+// ChallengeHistory.jsx - Corrigido para evitar loops de requisição
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faHistory, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
@@ -11,40 +11,62 @@ const ChallengeHistory = ({ user }) => {
   const [checkins, setCheckins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [challenge, setChallenge] = useState(null);
+  const [error, setError] = useState(null);
+  const effectRan = useRef(false);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
+    // Prevenindo múltiplas chamadas durante o desenvolvimento em strict mode
+    if (effectRan.current) return;
+    
     let isMounted = true;
     
     const fetchData = async () => {
       if (!challengeId || !user?.token) return;
       
       try {
-        // Primeiro, buscar o desafio para obter suas datas
-        const challengeRes = await fetch(`${API_URL}/challenges/${challengeId}`, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        });
-        
-        if (!isMounted) return;
-        
-        if (challengeRes.ok) {
-          const challengeData = await challengeRes.json();
-          setChallenge(challengeData);
-          
-          // Agora buscar check-ins
-          const checkinsRes = await fetch(`${API_URL}/users/${user.id}/checkins/?skip=0&limit=100`, {
-            headers: { Authorization: `Bearer ${user.token}` },
+        // Se já temos o desafio no contexto, usamos ele
+        if (activeChallenge && activeChallenge.id === parseInt(challengeId)) {
+          if (isMounted) {
+            setChallenge(activeChallenge);
+          }
+        } else {
+          // Caso contrário, buscamos do servidor
+          const challengeRes = await fetch(`${API_URL}/challenges/${challengeId}`, {
+            headers: { 
+              Authorization: `Bearer ${user.token}`,
+              "Cache-Control": "no-cache"
+            },
           });
           
           if (!isMounted) return;
           
-          if (checkinsRes.ok) {
-            const allCheckins = await checkinsRes.json();
-            console.log("Total de check-ins encontrados:", allCheckins.length);
-            
-            // Como não temos challenge_id, filtramos pelo período do desafio
-            const startDate = new Date(challengeData.start_date);
-            const endDate = new Date(challengeData.end_date);
+          if (challengeRes.ok) {
+            const challengeData = await challengeRes.json();
+            setChallenge(challengeData);
+          } else {
+            throw new Error("Falha ao buscar informações do desafio");
+          }
+        }
+        
+        // Agora buscar check-ins
+        const checkinsRes = await fetch(`${API_URL}/users/${user.id}/checkins/?skip=0&limit=100`, {
+          headers: { 
+            Authorization: `Bearer ${user.token}`,
+            "Cache-Control": "no-cache"
+          },
+        });
+        
+        if (!isMounted) return;
+        
+        if (checkinsRes.ok) {
+          const allCheckins = await checkinsRes.json();
+          
+          // Se temos o desafio, podemos filtrar os check-ins pelo período
+          if (challenge || activeChallenge) {
+            const targetChallenge = challenge || activeChallenge;
+            const startDate = new Date(targetChallenge.start_date);
+            const endDate = new Date(targetChallenge.end_date);
             
             // Filtrar check-ins que caem dentro do período do desafio
             const filteredCheckins = allCheckins.filter(checkin => {
@@ -54,13 +76,22 @@ const ChallengeHistory = ({ user }) => {
             
             console.log(`Check-ins filtrados por período (${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}):`, filteredCheckins.length);
             setCheckins(filteredCheckins);
+          } else {
+            // Se não temos o desafio, usamos todos os check-ins (não ideal)
+            setCheckins(allCheckins);
           }
+        } else {
+          throw new Error("Falha ao buscar check-ins");
         }
       } catch (err) {
         console.error("Erro ao buscar dados:", err);
+        if (isMounted) {
+          setError(err.message || "Erro ao carregar dados");
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
+          effectRan.current = true;
         }
       }
     };
@@ -71,7 +102,7 @@ const ChallengeHistory = ({ user }) => {
     return () => {
       isMounted = false;
     };
-  }, [challengeId, user, API_URL]);
+  }, [challengeId, user.id, user.token, activeChallenge]);
 
   if (loading) {
     return (
@@ -81,7 +112,15 @@ const ChallengeHistory = ({ user }) => {
     );
   }
 
-  // O resto do componente permanece o mesmo...
+  if (error) {
+    return (
+      <div className="bg-red-100 dark:bg-red-900 dark:bg-opacity-20 rounded-lg p-4 text-red-700 dark:text-red-300">
+        <FontAwesomeIcon icon={faExclamationTriangle} className="mr-2" />
+        {error}
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <h2 className="text-xl font-bold mb-4 flex items-center">

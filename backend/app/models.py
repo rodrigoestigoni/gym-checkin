@@ -50,6 +50,19 @@ class WeeklyUpdate(Base):
 def generate_challenge_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase, k=length))
 
+class ChallengeRules(Base):
+    __tablename__ = "challenge_rules"
+    id = Column(Integer, primary_key=True, index=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=False)
+    min_threshold = Column(Integer, nullable=False)
+    min_points = Column(Integer, nullable=False)
+    additional_unit = Column(Integer, nullable=False)
+    additional_points = Column(Integer, nullable=False)
+    unit_name = Column(String, default="treinos")
+    period = Column(String, default="semana")
+    
+    challenge = relationship("Challenge", back_populates="rules")
+
 class Challenge(Base):
     __tablename__ = "challenges"
     id = Column(Integer, primary_key=True, index=True)
@@ -66,6 +79,7 @@ class Challenge(Base):
     created_by = Column(Integer, ForeignKey("users.id"))
     creator = relationship("User", back_populates="created_challenges")
     participants = relationship("ChallengeParticipant", back_populates="challenge")
+    rules = relationship("ChallengeRules", back_populates="challenge", uselist=False)
 
 class ChallengeParticipant(Base):
     __tablename__ = "challenge_participants"

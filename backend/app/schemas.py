@@ -66,6 +66,24 @@ class ChallengeBase(BaseModel):
     bet: Optional[str] = "Aqui você pode definir algumas regras, como um castigo para quem perder, um prêmio para quem ganhar"
     private: Optional[bool] = True
 
+class ChallengeRulesBase(BaseModel):
+    min_threshold: int
+    min_points: int
+    additional_unit: int
+    additional_points: int
+    unit_name: str = "treinos"
+    period: str = "semana"
+
+class ChallengeRulesCreate(ChallengeRulesBase):
+    pass
+
+class ChallengeRules(ChallengeRulesBase):
+    id: int
+    challenge_id: int
+    
+    class Config:
+        orm_mode = True
+
 class ChallengeCreate(ChallengeBase):
     pass
 
@@ -74,7 +92,8 @@ class Challenge(ChallengeBase):
     code: str
     created_by: int
     creator: Optional[User]
-
+    rules: Optional[ChallengeRules]
+    
     class Config:
         orm_mode = True
 

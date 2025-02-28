@@ -47,7 +47,7 @@ const Header = ({ user, setUser }) => {
               <Link to="/dashboard" className="hover:text-green-500">Dashboard</Link>
               <Link to="/history" className="hover:text-green-500">Histórico</Link>
               <Link to="/ranking" className="hover:text-green-500">Ranking</Link>
-              <Link to="/challenges" className="hover:text-green-500">Desafios</Link>
+              
               {/* <Link to="/challenge-checkin" className="hover:text-green-500">Check-in em Desafio</Link> */}
 
               {user.is_admin && (

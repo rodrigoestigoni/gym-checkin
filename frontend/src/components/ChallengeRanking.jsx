@@ -1,5 +1,5 @@
-// ChallengeRanking.jsx
-import React, { useEffect, useState } from "react";
+// ChallengeRanking.jsx - Corrigido para evitar loops de requisição
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrophy, faMedal, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
@@ -15,18 +15,70 @@ const ChallengeRanking = ({ user }) => {
   const [activeTab, setActiveTab] = useState("weekly");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const effectRan = useRef(false);
+  const fetchInProgress = useRef(false);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
+  // Função para buscar ranking
+  const fetchRanking = async (period) => {
+    // Evitar chamadas duplicadas
+    if (fetchInProgress.current) return;
+    fetchInProgress.current = true;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      console.log(`Buscando ranking para desafio ${challengeId} com período ${period}`);
+      const res = await fetch(`${API_URL}/challenges/${challengeId}/ranking?period=${period}`, {
+        headers: { 
+          Authorization: `Bearer ${user.token}`,
+          "Cache-Control": "no-cache"
+        },
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Dados de ranking recebidos:", data);
+        
+        // Garantir que data tem a estrutura esperada
+        const formattedData = {
+          podium: Array.isArray(data.podium) ? data.podium : [],
+          others: Array.isArray(data.others) ? data.others : []
+        };
+        
+        setRankingData(formattedData);
+        setError(null);
+      } else {
+        console.error("Erro ao buscar ranking:", await res.text());
+        setError("Erro ao carregar ranking");
+      }
+    } catch (err) {
+      console.error("Erro ao buscar ranking:", err);
+      setError("Erro de conexão");
+    } finally {
+      setLoading(false);
+      fetchInProgress.current = false;
+    }
+  };
+
+  // useEffect para carregar o ranking inicial
   useEffect(() => {
+    // Prevenir execuções redundantes em modo estrito
+    if (effectRan.current) return;
+    
     let isMounted = true;
     
-    const fetchRanking = async () => {
+    const initialFetchRanking = async () => {
       if (!challengeId || !user?.token) return;
       
       try {
         console.log(`Buscando ranking para desafio ${challengeId} com período ${activeTab}`);
         const res = await fetch(`${API_URL}/challenges/${challengeId}/ranking?period=${activeTab}`, {
-          headers: { Authorization: `Bearer ${user.token}` },
+          headers: { 
+            Authorization: `Bearer ${user.token}`,
+            "Cache-Control": "no-cache"
+          },
         });
         
         if (!isMounted) return;
@@ -55,21 +107,36 @@ const ChallengeRanking = ({ user }) => {
       } finally {
         if (isMounted) {
           setLoading(false);
+          effectRan.current = true;
         }
       }
     };
     
     setLoading(true);
-    fetchRanking();
+    initialFetchRanking();
     
     return () => {
       isMounted = false;
     };
-  }, [challengeId, activeTab, user, API_URL]);
+  }, [challengeId, activeTab, user.token, API_URL]);
 
   const handleTabChange = (tab) => {
     if (tab !== activeTab) {
       setActiveTab(tab);
+      fetchRanking(tab);
+    }
+  };
+
+  const getMedalIcon = (rank) => {
+    switch (rank) {
+      case 1:
+        return <FontAwesomeIcon icon={faTrophy} className="text-yellow-400" />;
+      case 2:
+        return <FontAwesomeIcon icon={faMedal} className="text-gray-400" />;
+      case 3:
+        return <FontAwesomeIcon icon={faMedal} className="text-amber-600" />;
+      default:
+        return rank;
     }
   };
 
@@ -127,7 +194,6 @@ const ChallengeRanking = ({ user }) => {
     </div>
   );
 
-  // Resto do componente...
   return (
     <div className="p-4 max-w-4xl mx-auto">
       <div className="flex justify-center mb-6">

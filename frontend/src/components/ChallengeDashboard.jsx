@@ -1,5 +1,5 @@
-// ChallengeDashboard.jsx - Correção do problema de carregamento
-import React, { useEffect, useState } from "react";
+// ChallengeDashboard.jsx - Versão corrigida para evitar loops de requisição
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -14,15 +14,19 @@ import { useChallenge } from '../contexts/ChallengeContext';
 
 const ChallengeDashboard = ({ user }) => {
   const { challengeId } = useParams();
-  const { activeChallenge } = useChallenge();
+  const { activeChallenge, setActiveChallenge } = useChallenge();
   const [challengeData, setChallengeData] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [userProgress, setUserProgress] = useState(0);
   const [loading, setLoading] = useState(true);
+  const effectRan = useRef(false);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
-  // UseEffect com controle de requisição para evitar loops
+  // UseEffect com controle correto para evitar loops infinitos
   useEffect(() => {
+    // Prevenindo múltiplas execuções no modo estrito do React
+    if (effectRan.current) return;
+    
     let isMounted = true; // Flag para verificar se o componente ainda está montado
     
     const fetchData = async () => {
@@ -33,7 +37,11 @@ const ChallengeDashboard = ({ user }) => {
         
         // Buscar desafio
         const challengeRes = await fetch(`${API_URL}/challenges/${challengeId}`, {
-          headers: { Authorization: `Bearer ${user.token}` },
+          headers: { 
+            Authorization: `Bearer ${user.token}`,
+            // Adicionando Cache-Control para evitar requisições duplicadas
+            "Cache-Control": "no-cache"
+          },
         });
         
         if (!isMounted) return; // Evita atualizar o estado se o componente foi desmontado
@@ -43,11 +51,18 @@ const ChallengeDashboard = ({ user }) => {
           console.log("Dados do desafio recebidos:", challenge);
           setChallengeData(challenge);
           
+          if (isMounted) {
+            setActiveChallenge(challenge);
+          }
+          
           // Continuar com outras requisições depois que temos o desafio
           try {
             // Buscar os participantes do desafio
             const participantsRes = await fetch(`${API_URL}/challenges/${challengeId}/participants`, {
-              headers: { Authorization: `Bearer ${user.token}` },
+              headers: { 
+                Authorization: `Bearer ${user.token}`,
+                "Cache-Control": "no-cache"
+              },
             });
             
             if (!isMounted) return;
@@ -60,15 +75,18 @@ const ChallengeDashboard = ({ user }) => {
             
             // Buscar check-ins do usuário
             const checkinsRes = await fetch(`${API_URL}/users/${user.id}/checkins/?skip=0&limit=100`, {
-              headers: { Authorization: `Bearer ${user.token}` },
+              headers: { 
+                Authorization: `Bearer ${user.token}`,
+                "Cache-Control": "no-cache"
+              },
             });
             
             if (!isMounted) return;
             
             if (checkinsRes.ok) {
               const checkinsData = await checkinsRes.json();
-              // Por enquanto assumir que todos os check-ins são do desafio
-              // Em uma solução futura, fazer a filtragem correta
+              // Filtrar check-ins para este desafio específico
+              // Como você não tem um campo desafio_id nos checkins, vamos assumir o total por enquanto
               const total = checkinsData.length;
               console.log(`Total de check-ins: ${total}`);
               setUserProgress(total);
@@ -86,6 +104,7 @@ const ChallengeDashboard = ({ user }) => {
       } finally {
         if (isMounted) {
           setLoading(false);
+          effectRan.current = true;
         }
       }
     };
@@ -97,8 +116,10 @@ const ChallengeDashboard = ({ user }) => {
     // Cleanup function para evitar memory leaks
     return () => {
       isMounted = false;
+      // Não resetamos effectRan.current para false aqui para evitar múltiplas chamadas 
+      // quando o componente é remontado
     };
-  }, [challengeId, user, API_URL]);
+  }, [challengeId, user.id, user.token, setActiveChallenge]); // Dependências explícitas e mínimas
 
   // O resto da renderização permanece o mesmo...
   

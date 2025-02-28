@@ -1,4 +1,4 @@
-// src/components/ImprovedChallengeCreate.jsx
+// src/components/ChallengeCreate.jsx - Atualizado com regras
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -12,8 +12,9 @@ import {
   faChevronRight,
   faSave
 } from "@fortawesome/free-solid-svg-icons";
+import ChallengeRulesForm from "./ChallengeRulesForm";
 
-const ImprovedChallengeCreate = ({ user }) => {
+const ChallengeCreate = ({ user }) => {
   const [activeStep, setActiveStep] = useState(1);
   const [formData, setFormData] = useState({
     title: "",
@@ -26,6 +27,7 @@ const ImprovedChallengeCreate = ({ user }) => {
     private: true,
   });
   
+  const [rules, setRules] = useState(null);
   const navigate = useNavigate();
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
@@ -49,6 +51,10 @@ const ImprovedChallengeCreate = ({ user }) => {
     });
   };
 
+  const handleRulesChange = (newRules) => {
+    setRules(newRules);
+  };
+
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
     
@@ -60,6 +66,7 @@ const ImprovedChallengeCreate = ({ user }) => {
     };
     
     try {
+      // Criar o desafio
       const res = await fetch(`${API_URL}/challenges/`, {
         method: "POST",
         headers: {
@@ -70,8 +77,25 @@ const ImprovedChallengeCreate = ({ user }) => {
       });
       
       if (res.ok) {
-        const data = await res.json();
-        navigate(`/challenge/${data.id}/dashboard`);
+        const challengeData = await res.json();
+        
+        // Criar as regras se disponíveis
+        if (rules && challengeData.id) {
+          try {
+            await fetch(`${API_URL}/challenges/${challengeData.id}/rules`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${user.token}`,
+              },
+              body: JSON.stringify(rules),
+            });
+          } catch (rulesError) {
+            console.error("Erro ao criar regras:", rulesError);
+          }
+        }
+        
+        navigate(`/challenge/${challengeData.id}/dashboard`);
       } else {
         const errorData = await res.json();
         alert(errorData.detail || "Erro ao criar desafio");
@@ -113,10 +137,10 @@ const ImprovedChallengeCreate = ({ user }) => {
     },
     {
       icon: faMoneyBillWave,
-      name: "economia",
-      label: "Economia",
+      name: "investimento",
+      label: "Economia/Investimento",
       target: 500,
-      description: "Desafio para economizar uma quantia específica.",
+      description: "Desafio para economizar ou investir uma quantia específica.",
     },
   ];
 
@@ -142,12 +166,13 @@ const ImprovedChallengeCreate = ({ user }) => {
         <div className="flex justify-between mb-2">
           <span className={activeStep >= 1 ? "font-bold text-green-500" : ""}>Tipo</span>
           <span className={activeStep >= 2 ? "font-bold text-green-500" : ""}>Detalhes</span>
-          <span className={activeStep >= 3 ? "font-bold text-green-500" : ""}>Confirmar</span>
+          <span className={activeStep >= 3 ? "font-bold text-green-500" : ""}>Regras</span>
+          <span className={activeStep >= 4 ? "font-bold text-green-500" : ""}>Confirmar</span>
         </div>
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
           <div 
             className="bg-green-500 h-2.5 rounded-full transition-all duration-500" 
-            style={{ width: `${(activeStep / 3) * 100}%` }}
+            style={{ width: `${(activeStep / 4) * 100}%` }}
           ></div>
         </div>
       </div>
@@ -312,8 +337,41 @@ const ImprovedChallengeCreate = ({ user }) => {
           </form>
         </>
       )}
-      
+
       {activeStep === 3 && (
+        <>
+          <h2 className="text-xl font-bold mb-4">Defina as regras de pontuação</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            Configure como os participantes ganharão pontos neste desafio. Estas regras ajudarão a determinar os rankings e o progresso.
+          </p>
+          
+          <ChallengeRulesForm 
+            modality={formData.modality} 
+            onChange={handleRulesChange}
+          />
+          
+          <div className="flex justify-between pt-4">
+            <button 
+              type="button"
+              onClick={() => setActiveStep(2)}
+              className="px-4 py-2 border rounded dark:border-gray-600 flex items-center"
+            >
+              <FontAwesomeIcon icon={faChevronLeft} className="mr-2" />
+              Voltar
+            </button>
+            <button 
+              type="button"
+              onClick={() => setActiveStep(4)}
+              className="px-4 py-2 bg-green-500 text-white rounded flex items-center"
+            >
+              Próximo
+              <FontAwesomeIcon icon={faChevronRight} className="ml-2" />
+            </button>
+          </div>
+        </>
+      )}
+      
+      {activeStep === 4 && (
         <>
           <h2 className="text-xl font-bold mb-4">Confirme os detalhes do desafio</h2>
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
@@ -339,6 +397,16 @@ const ImprovedChallengeCreate = ({ user }) => {
               </div>
             </div>
             
+            {rules && (
+              <div className="bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20 p-3 rounded-lg mb-4">
+                <p className="font-medium mb-1">Regras de Pontuação:</p>
+                <p className="text-sm">
+                  Mínimo de {rules.min_threshold} {rules.unit_name} para ganhar {rules.min_points} pontos.
+                  Cada {rules.additional_unit} {rules.unit_name} adicional vale mais {rules.additional_points} pontos.
+                </p>
+              </div>
+            )}
+            
             {formData.bet && (
               <div className="mb-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400">Regras / Aposta</p>
@@ -353,7 +421,7 @@ const ImprovedChallengeCreate = ({ user }) => {
           
           <div className="flex justify-between">
             <button 
-              onClick={() => setActiveStep(2)}
+              onClick={() => setActiveStep(3)}
               className="px-4 py-2 border rounded dark:border-gray-600 flex items-center"
             >
               <FontAwesomeIcon icon={faChevronLeft} className="mr-2" />
@@ -373,4 +441,4 @@ const ImprovedChallengeCreate = ({ user }) => {
   );
 };
 
-export default ImprovedChallengeCreate;
+export default ChallengeCreate;

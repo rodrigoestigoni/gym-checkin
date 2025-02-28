@@ -675,3 +675,106 @@ def create_challenge_checkin(
             )
     
     return db_checkin  # Retorne o check-in criado
+
+@router.post("/challenges/{challenge_id}/rules", response_model=schemas.ChallengeRules)
+def create_challenge_rules(
+    challenge_id: int,
+    rules: schemas.ChallengeRulesCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    # Verificar se o desafio existe
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+    
+    # Verificar se o usuário é o criador do desafio
+    if challenge.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Apenas o criador pode definir regras")
+    
+    # Verificar se já existem regras
+    existing_rules = db.query(models.ChallengeRules).filter(
+        models.ChallengeRules.challenge_id == challenge_id
+    ).first()
+    
+    if existing_rules:
+        # Atualizar regras existentes
+        for key, value in rules.dict().items():
+            setattr(existing_rules, key, value)
+        db_rules = existing_rules
+    else:
+        # Criar novas regras
+        db_rules = models.ChallengeRules(challenge_id=challenge_id, **rules.dict())
+        db.add(db_rules)
+    
+    db.commit()
+    db.refresh(db_rules)
+    return db_rules
+
+@router.get("/challenges/{challenge_id}/rules", response_model=schemas.ChallengeRules)
+def get_challenge_rules(
+    challenge_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    rules = db.query(models.ChallengeRules).filter(
+        models.ChallengeRules.challenge_id == challenge_id
+    ).first()
+    
+    if not rules:
+        raise HTTPException(status_code=404, detail="Regras não encontradas")
+    
+    return rules
+
+# Função para calcular pontos com base nas regras específicas do desafio
+def calculate_challenge_points(checkin_count: int, rules: models.ChallengeRules) -> int:
+    """Calcula pontos baseado nas regras específicas do desafio."""
+    if not rules or checkin_count < rules.min_threshold:
+        return 0
+    
+    base_points = rules.min_points
+    additional_count = max(0, checkin_count - rules.min_threshold)
+    additional_points = (additional_count // rules.additional_unit) * rules.additional_points
+    
+    return base_points + additional_points
+
+# Modificação na função update_weekly_points em crud.py
+def update_challenge_points(db: Session, user_id: int, challenge_id: int):
+    """Atualiza a pontuação do usuário em um desafio específico."""
+    # Buscar o desafio e suas regras
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        return
+    
+    rules = db.query(models.ChallengeRules).filter(
+        models.ChallengeRules.challenge_id == challenge_id
+    ).first()
+    
+    # Buscar a participação do usuário
+    participant = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == user_id
+    ).first()
+    
+    if not participant:
+        return
+    
+    # Contar checkins do desafio
+    checkin_count = db.query(models.CheckIn).filter(
+        models.CheckIn.user_id == user_id,
+        models.CheckIn.challenge_id == challenge_id
+    ).count()
+    
+    # Calcular pontos
+    if rules:
+        challenge_points = calculate_challenge_points(checkin_count, rules)
+    else:
+        # Fallback para a regra padrão
+        challenge_points = calculate_weekly_points(checkin_count)
+    
+    # Atualizar pontos do participante
+    participant.progress = checkin_count
+    participant.challenge_points = challenge_points
+    db.commit()
+    
+    return participant
