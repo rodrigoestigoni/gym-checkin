@@ -1,32 +1,38 @@
 // frontend/src/components/DarkModeToggle.jsx
 import React, { useEffect, useState } from "react";
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faMoon, faSun } from "@fortawesome/free-solid-svg-icons";
 
 const DarkModeToggle = () => {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true); // Modo dark como padrão
 
   useEffect(() => {
     const storedDark = localStorage.getItem("darkMode");
-    if (storedDark === "true") {
+    if (storedDark !== null) {
+      const isDark = storedDark === "true";
+      setDarkMode(isDark);
+      if (isDark) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    } else {
+      // Se não há valor armazenado, usa o padrão (darkMode = true)
       setDarkMode(true);
       document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
+      localStorage.setItem("darkMode", "true");
     }
   }, []);
 
   const toggleDarkMode = () => {
-    console.log("toggleDarkMode chamado, darkMode atual:", darkMode);
-    if (!darkMode) {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    if (newDarkMode) {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("darkMode", "true");
-      setDarkMode(true);
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("darkMode", "false");
-      setDarkMode(false);
     }
+    localStorage.setItem("darkMode", newDarkMode.toString());
   };
 
   return (

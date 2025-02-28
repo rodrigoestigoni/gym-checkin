@@ -87,9 +87,10 @@ class ChallengeParticipant(BaseModel):
     challenge_id: int
     user_id: int
     joined_at: datetime
-    progress: Optional[float] = 0
+    progress: Optional[int] = 0
     submission_image: Optional[str] = None
     approved: bool
+    user: User
 
     class Config:
         orm_mode = True
@@ -111,3 +112,6 @@ class ChallengeParticipantResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class ApproveRequest(BaseModel):
+    participant_id: int

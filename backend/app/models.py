@@ -5,6 +5,24 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
+class Achievement(Base):
+    __tablename__ = "achievements"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String)  # ex.: "Maratonista", "Leitor Voraz"
+    description = Column(Text)
+    earned_at = Column(DateTime, default=func.now())
+
+class WeeklyPoints(Base):
+    __tablename__ = "weekly_points"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    week_start = Column(DateTime, nullable=False)  # Sunday of the week
+    week_end = Column(DateTime, nullable=False)    # Saturday of the week
+    checkin_count = Column(Integer, default=0)     # Number of check-ins in the week
+    points = Column(Integer, default=0)            # Calculated points for the week
+    user = relationship("User", back_populates="weekly_points")
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -15,6 +33,7 @@ class User(Base):
     points = Column(Integer, default=0)
     profile_image = Column(String, nullable=True)  # Armazena o caminho ou URL da imagem
     weeks_won = Column(Integer, default=0)  # NOVO: total de semanas vencidas
+    weekly_points = relationship("WeeklyPoints", back_populates="user")
     created_challenges = relationship("Challenge", back_populates="creator")
 
 class CheckIn(Base):
@@ -26,6 +45,7 @@ class CheckIn(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     duration = Column(Float, nullable=True)
     description = Column(Text, nullable=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=True)
 
 
 class WeeklyUpdate(Base):
@@ -61,7 +81,8 @@ class ChallengeParticipant(Base):
     challenge_id = Column(Integer, ForeignKey("challenges.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     joined_at = Column(DateTime, default=func.now())
-    progress = Column(Integer, default=0)  # Progresso (ex.: número de treinos, km, etc.)
+    progress = Column(Integer, default=0)  # Por exemplo, quantidade de checkins feitos no desafio
+    challenge_points = Column(Integer, default=0)  # Novo campo para pontos do desafio
     submission_image = Column(String, nullable=True)
     approved = Column(Boolean, default=False)
     challenge = relationship("Challenge", back_populates="participants")

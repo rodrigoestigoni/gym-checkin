@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta
 import os, shutil
+import logging
 from . import schemas, crud, auth, database, models
 from .config import MIN_TRAINING_DAYS
 
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 
-
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -77,14 +78,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = auth.create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
-### Endpoint para criar um checkin
-@router.post("/checkin/", response_model=schemas.CheckIn)
-def create_checkin(checkin: schemas.CheckInCreate, current_user: schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Garante que o usuário está criando seu próprio checkin
-    if checkin.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Não autorizado")
-    return crud.create_checkin(db, checkin)
-
 ### Endpoint para obter checkins do usuário (lista paginada)
 @router.get("/users/{user_id}/checkins/", response_model=list[schemas.CheckIn])
 def get_checkins(user_id: int, skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
@@ -101,33 +94,9 @@ def get_weekly_checkins(user_id: int, week_offset: int = 0, db: Session = Depend
     end_of_week = start_of_week + timedelta(days=6)
     return crud.get_checkins_by_user_between(db, user_id, start_of_week, end_of_week)
 
-### Endpoint para ranking
 @router.get("/ranking/", response_model=list[schemas.User])
 def get_ranking(limit: int = 10, db: Session = Depends(get_db)):
-    return crud.get_ranking(db, limit)
-
-# Endpoint para atualizar um checkin
-@router.put("/checkins/{checkin_id}", response_model=schemas.CheckIn)
-def update_checkin(checkin_id: int, update: schemas.CheckInUpdate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    checkin = crud.get_checkin(db, checkin_id)
-    if not checkin:
-        raise HTTPException(status_code=404, detail="Checkin não encontrado")
-    if checkin.user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Não autorizado")
-    updated = crud.update_checkin(db, checkin, update)
-    return updated
-
-
-# Endpoint para remover um checkin
-@router.delete("/checkins/{checkin_id}", status_code=204)
-def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    checkin = crud.get_checkin(db, checkin_id)
-    if not checkin:
-        raise HTTPException(status_code=404, detail="Checkin não encontrado")
-    if checkin.user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Não autorizado")
-    crud.delete_checkin(db, checkin)
-    return
+    return db.query(models.User).order_by(models.User.points.desc()).limit(limit).all()
 
 @router.put("/users/me", response_model=schemas.User)
 def update_profile(
@@ -151,143 +120,32 @@ def update_profile(
     db.refresh(current_user)
     return current_user
 
-
-@router.get("/ranking/weekly")
-def weekly_ranking(db: Session = Depends(get_db)):
-    today = datetime.utcnow().date()
-    if today.isoweekday() == 7:
-        start_of_week = today
-    else:
-        start_of_week = today - timedelta(days=today.isoweekday() - 1)
-    end_of_week = start_of_week + timedelta(days=6)
-    
-    start_dt = datetime.combine(start_of_week, datetime.min.time())
-    # Para o ranking semanal, usamos o horário atual como fim, mesmo que a semana não esteja completa
-    now = datetime.utcnow()
-    end_dt_for_query = now  # usamos now para contar os checkins da semana atual
-    
-    # Consulta os checkins da semana atual (desde o início da semana até agora)
-    weekly_data = db.query(
-        models.CheckIn.user_id,
-        func.count(models.CheckIn.id).label("count")
-    ).filter(
-        models.CheckIn.timestamp >= start_dt,
-        models.CheckIn.timestamp <= now
-    ).group_by(models.CheckIn.user_id).all()
-    
-    display_scores = {user_id: count for user_id, count in weekly_data}
-    
-    def calculate_points(count):
-        if count < MIN_TRAINING_DAYS:
-            return 0
-        return 10 + 3 * (count - MIN_TRAINING_DAYS)
-    
-    # NÃO atualizamos pontos automaticamente porque a semana atual está incompleta.
-    # Apenas retornamos os dados para exibição.
-    
-    if display_scores:
-        display_users = db.query(models.User).filter(
-            models.User.id.in_(list(display_scores.keys()))
-        ).all()
-    else:
-        display_users = []
-    
-    for user_obj in display_users:
-        count = display_scores.get(user_obj.id, 0)
-        user_obj.weekly_score = count
-        user_obj.calculated_points = calculate_points(count)
-    
-    groups = {}
-    for user in display_users:
-        score = user.weekly_score
-        if score not in groups:
-            groups[score] = []
-        groups[score].append(user)
-    
-    sorted_scores = sorted(groups.keys(), reverse=True)
-    
-    podium_data = []
-    others_data = []
-    for i, score in enumerate(sorted_scores):
-        rank = i + 1
-        group_data = [
-            {
-                "id": u.id,
-                "username": u.username,
-                "profile_image": u.profile_image,
-                "points": u.points,
-                "weekly_score": u.weekly_score,
-                "calculated_points": u.calculated_points,
-                "rank": rank
-            }
-            for u in groups[score]
-        ]
-        if rank <= 3:
-            podium_data.extend(group_data)
-        else:
-            others_data.extend(group_data)
-    
-    summary_users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
-    summary_data = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "profile_image": u.profile_image,
-            "points": u.points,
-            "weekly_score": display_scores.get(u.id, 0),
-            "weeks_won": u.weeks_won,
-        }
-        for u in summary_users
-    ]
-    return {
-        "podium": podium_data,
-        "others": others_data,
-        "summary": summary_data,
-        "weekly": list(display_scores.items()),
-        "week_range": {"start": str(start_of_week), "end": str(end_of_week)}
-    }
-
-
-
-@router.get("/ranking/overall")
-def overall_ranking(db: Session = Depends(get_db)):
-    users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
-    data = [
-        {
-            "id": u.id,
-            "username": u.username,
-            "profile_image": u.profile_image,
-            "weeks_won": u.weeks_won,
-            "points": u.points
-        }
-        for u in users
-    ]
-    return {"overall": data}
-
-
 @router.post("/challenges/", response_model=schemas.Challenge)
-def create_challenge(challenge: schemas.ChallengeCreate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+def create_challenge(
+    challenge: schemas.ChallengeCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
     data = challenge.dict()
     data["created_by"] = current_user.id
-    # Se o usuário informou start_date e duration_days mas não end_date, calcule end_date:
     if data.get("start_date") and data.get("duration_days") and not data.get("end_date"):
         data["end_date"] = data["start_date"] + timedelta(days=data["duration_days"] - 1)
-    # Se informou start_date e end_date mas não duration_days, calcule a duração:
-    if data.get("start_date") and data.get("end_date") and not data.get("duration_days"):
-        data["duration_days"] = (data["end_date"].date() - data["start_date"].date()).days + 1
     db_challenge = models.Challenge(**data)
     db.add(db_challenge)
     db.commit()
     db.refresh(db_challenge)
+
+    # Adiciona o criador como participante aprovado
+    participant = models.ChallengeParticipant(
+        challenge_id=db_challenge.id,
+        user_id=current_user.id,
+        approved=True
+    )
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+
     return db_challenge
-
-
-@router.get("/challenges/{challenge_id}/participants/count")
-def count_participants(challenge_id: int, db: Session = Depends(get_db)):
-    count = db.query(models.ChallengeParticipant).filter(
-        models.ChallengeParticipant.challenge_id == challenge_id
-    ).count()
-    return {"count": count}
 
 
 @router.get("/challenges/", response_model=list[schemas.Challenge])
@@ -379,12 +237,17 @@ def list_pending_participants(challenge_id: int, db: Session = Depends(get_db), 
     return pending
 
 @router.post("/challenges/{challenge_id}/approve", response_model=schemas.ChallengeParticipant)
-def approve_participant(challenge_id: int, participant_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+def approve_participant(
+    challenge_id: int,
+    request: schemas.ApproveRequest,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
     challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
     if not challenge or challenge.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Acesso negado")
     participant = db.query(models.ChallengeParticipant).filter(
-        models.ChallengeParticipant.id == participant_id,
+        models.ChallengeParticipant.id == request.participant_id,
         models.ChallengeParticipant.challenge_id == challenge_id
     ).first()
     if not participant:
@@ -394,14 +257,105 @@ def approve_participant(challenge_id: int, participant_id: int, db: Session = De
     db.refresh(participant)
     return participant
 
-@router.get("/challenges/{challenge_id}/ranking", response_model=list[schemas.ChallengeParticipant])
-def challenge_ranking(challenge_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
-    # Retorna os participantes aprovados ordenados por progress (descendente)
+@router.get("/challenges/{challenge_id}/ranking")
+def challenge_ranking(challenge_id: int, period: str = "weekly", db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    participation = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id,
+        models.ChallengeParticipant.approved == True
+    ).first()
+    if not participation:
+        raise HTTPException(status_code=403, detail="Você não participa deste desafio")
+    
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+
     participants = db.query(models.ChallengeParticipant).filter(
         models.ChallengeParticipant.challenge_id == challenge_id,
         models.ChallengeParticipant.approved == True
-    ).order_by(models.ChallengeParticipant.progress.desc()).all()
-    return participants
+    ).options(joinedload(models.ChallengeParticipant.user)).all()
+
+    if period == "weekly":
+        today = datetime.utcnow().date()
+        start_of_week = today - timedelta(days=today.weekday() + 1)  # Domingo
+        start_dt = datetime.combine(start_of_week, datetime.min.time())
+        end_dt = datetime.utcnow()
+
+        checkins = db.query(models.CheckIn).filter(
+            models.CheckIn.challenge_id == challenge_id,
+            models.CheckIn.timestamp >= start_dt,
+            models.CheckIn.timestamp <= end_dt
+        ).all()
+        checkin_counts = {}
+        for c in checkins:
+            checkin_counts[c.user_id] = checkin_counts.get(c.user_id, 0) + 1
+
+        ranked = sorted(participants, key=lambda p: checkin_counts.get(p.user_id, 0), reverse=True)
+    else:  # overall
+        ranked = sorted(participants, key=lambda p: p.progress, reverse=True)
+
+    current_rank = 1
+    previous_score = None
+    podium = []
+    others = []
+    for i, p in enumerate(ranked):
+        score = checkin_counts.get(p.user_id, 0) if period == "weekly" else p.progress
+        if i > 0 and score < previous_score:
+            current_rank = i + 1
+        previous_score = score
+        user_data = {
+            "id": p.user.id,
+            "username": p.user.username,
+            "profile_image": p.user.profile_image,
+            "weekly_score": score,
+            "rank": current_rank
+        }
+        if current_rank <= 3:
+            podium.append(user_data)
+        else:
+            others.append(user_data)
+
+    return {"podium": podium, "others": others, "title": challenge.title}
+
+@router.post("/challenges/{challenge_id}/checkin", response_model=schemas.CheckIn)
+def create_challenge_checkin(
+    challenge_id: int,
+    checkin: schemas.CheckInCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+):
+    # Verifica se o desafio existe
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        raise HTTPException(status_code=404, detail="Desafio não encontrado")
+
+    # Verifica se o usuário participa do desafio e está aprovado
+    participation = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == current_user.id,
+        models.ChallengeParticipant.approved == True
+    ).first()
+    if not participation:
+        raise HTTPException(status_code=403, detail="Você não participa deste desafio ou não foi aprovado")
+
+    # Garante que o check-in é para o usuário atual
+    if checkin.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Não autorizado a criar check-in para outro usuário")
+
+    # Cria o check-in vinculado ao desafio
+    checkin_data = checkin.dict()
+    checkin_data["challenge_id"] = challenge_id
+    db_checkin = models.CheckIn(**checkin_data)
+    db.add(db_checkin)
+
+    # Atualiza o progresso do participante (incrementa em 1 para cada check-in)
+    participation.progress += 1
+    db.commit()
+    db.refresh(db_checkin)
+    db.refresh(participation)
+
+    return db_checkin
 
 @router.get("/challenges/invite/{code}", response_model=schemas.Challenge)
 def get_challenge_by_code(code: str, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
@@ -463,7 +417,9 @@ def all_challenge_invitations(db: Session = Depends(get_db), current_user: schem
         models.Challenge.created_by == current_user.id
     ).all()
     created_ids = [c.id for c in created_challenges]
-    pending = db.query(models.ChallengeParticipant).filter(
+    pending = db.query(models.ChallengeParticipant).options(
+        joinedload(models.ChallengeParticipant.user)
+    ).filter(
         models.ChallengeParticipant.challenge_id.in_(created_ids),
         models.ChallengeParticipant.approved == False
     ).all()
@@ -475,28 +431,110 @@ def all_challenge_invitations(db: Session = Depends(get_db), current_user: schem
             response.append({"challenge": ch, "participant": p})
     return response
 
-@router.post("/challenges/{challenge_id}/checkin", response_model=schemas.CheckIn)
-def create_challenge_checkin(challenge_id: int, checkin: schemas.CheckInCreate, 
-                             current_user: schemas.User = Depends(get_current_user), 
-                             db: Session = Depends(get_db)):
-    # Verifica se o usuário participa do desafio
-    participation = db.query(models.ChallengeParticipant).filter(
-        models.ChallengeParticipant.challenge_id == challenge_id,
-        models.ChallengeParticipant.user_id == current_user.id,
-        models.ChallengeParticipant.approved == True
-    ).first()
-    if not participation:
-        raise HTTPException(status_code=403, detail="Você não participa deste desafio")
-    checkin_data = checkin.dict()
-    checkin_data["challenge_id"] = challenge_id
-    db_checkin = models.CheckIn(**checkin_data)
-    db.add(db_checkin)
-    db.commit()
-    db.refresh(db_checkin)
-    return db_checkin
+@router.post("/admin/recalculate-points", status_code=200)
+def recalculate_points(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    crud.recalculate_all_points(db)
+    return {"detail": "Points recalculated successfully"}
 
+@router.get("/ranking/weekly")
+def weekly_ranking(db: Session = Depends(get_db)):
+    today = datetime.utcnow()
+    start_of_week = today - timedelta(days=(today.weekday() + 1) % 7)
+    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59, microseconds=999999)
+    
+    logger.debug(f"Week range: {start_of_week} to {end_of_week}")
+    
+    weekly_data = db.query(models.WeeklyPoints).filter(
+        models.WeeklyPoints.week_start == start_of_week,
+        models.WeeklyPoints.checkin_count > 0
+    ).all()
+    
+    logger.debug(f"Weekly data: {[(wp.user_id, wp.checkin_count) for wp in weekly_data]}")
+    
+    if not weekly_data:
+        return {
+            "podium": [],
+            "others": [],
+            "week_range": {"start": start_of_week.strftime("%Y-%m-%d"), "end": end_of_week.strftime("%Y-%m-%d")}
+        }
+    
+    display_scores = {wp.user_id: wp.checkin_count for wp in weekly_data}
+    user_ids = list(display_scores.keys())
+    users = db.query(models.User).filter(models.User.id.in_(user_ids)).all()
+    
+    logger.debug(f"Users found: {[(user.id, user.username) for user in users]}")
+    
+    ranking_list = []
+    for user in users:
+        weekly_count = display_scores.get(user.id, 0)
+        if weekly_count > 0:
+            ranking_list.append({
+                "id": user.id,
+                "username": user.username,
+                "profile_image": user.profile_image,
+                "weekly_score": weekly_count,
+                "rank": 0
+            })
+    
+    logger.debug(f"Ranking list before sorting: {ranking_list}")
+    
+    ranking_list.sort(key=lambda x: x["weekly_score"], reverse=True)
+    
+    # Atribui ranks, considerando empates, e ajusta para pódio até 3º lugar
+    current_rank = 1
+    previous_score = None
+    podium_data = []
+    
+    for i, user_data in enumerate(ranking_list):
+        if i > 0 and user_data["weekly_score"] < previous_score:
+            current_rank = i + 1
+        # Limitar o rank ao máximo de 3, mesmo com empates
+        user_data["rank"] = min(current_rank, 3)
+        previous_score = user_data["weekly_score"]
+        podium_data.append(user_data)
+    
+    logger.debug(f"Podium: {podium_data}")
+    logger.debug(f"Others: []")  # Nenhum "Others", todos no pódio
+    
+    return {
+        "podium": podium_data,
+        "others": [],  # Removido "Others" para incluir todos no pódio até 3º
+        "week_range": {"start": start_of_week.strftime("%Y-%m-%d"), "end": end_of_week.strftime("%Y-%m-%d")}
+    }
 
-# Endpoint para remover um checkin
+@router.get("/ranking/overall")
+def overall_ranking(db: Session = Depends(get_db)):
+    users = db.query(models.User).order_by(models.User.weeks_won.desc()).all()
+    data = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "profile_image": u.profile_image,
+            "weeks_won": u.weeks_won,
+            "points": u.points
+        }
+        for u in users
+    ]
+    return {"overall": data}
+
+@router.post("/checkin/", response_model=schemas.CheckIn)
+def create_checkin(checkin: schemas.CheckInCreate, current_user: schemas.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if checkin.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    return crud.create_checkin(db, checkin)
+
+@router.put("/checkins/{checkin_id}", response_model=schemas.CheckIn)
+def update_checkin(checkin_id: int, update: schemas.CheckInUpdate, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    checkin = crud.get_checkin(db, checkin_id)
+    if not checkin:
+        raise HTTPException(status_code=404, detail="Checkin não encontrado")
+    if checkin.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Não autorizado")
+    return crud.update_checkin(db, checkin, update)
+
 @router.delete("/checkins/{checkin_id}", status_code=204)
 def delete_checkin(checkin_id: int, db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
     checkin = crud.get_checkin(db, checkin_id)

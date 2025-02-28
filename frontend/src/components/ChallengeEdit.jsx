@@ -1,68 +1,76 @@
+// frontend/src/components/ChallengeEdit.jsx
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEdit } from "@fortawesome/free-solid-svg-icons";
 
 const ChallengeEdit = ({ user }) => {
   const { challengeId } = useParams();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [modality, setModality] = useState("academia");
-  const [target, setTarget] = useState(0);
-  const [startDate, setStartDate] = useState("");
-  const [durationDays, setDurationDays] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    modality: "",
+    target: "",
+    start_date: "",
+    duration_days: "",
+    end_date: "",
+    bet: "",
+    private: true,
+  });
+  const [msg, setMsg] = useState({ text: "", type: "" });
+  const [loading, setLoading] = useState(true);
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
-    fetch(`${API_URL}/challenges/${challengeId}`, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${user.token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setTitle(data.title);
-        setDescription(data.description);
-        setModality(data.modality);
-        setTarget(data.target);
-        setStartDate(data.start_date.split("T")[0]);
-        setDurationDays(data.duration_days);
-        setEndDate(data.end_date.split("T")[0]);
+    if (user && challengeId) {
+      fetch(`${API_URL}/challenges/${challengeId}`, {
+        headers: { Authorization: `Bearer ${user.token}` },
       })
-      .catch((err) => console.error(err));
-  }, [API_URL, challengeId, user.token]);
-
-  // Atualiza endDate se startDate e durationDays mudarem
-  useEffect(() => {
-    if (startDate && durationDays) {
-      const start = new Date(startDate);
-      const calcEnd = new Date(start.getTime() + (durationDays - 1) * 24 * 60 * 60 * 1000);
-      setEndDate(calcEnd.toISOString().split("T")[0]);
+        .then((res) => {
+          if (!res.ok) throw new Error("Erro ao carregar desafio");
+          return res.json();
+        })
+        .then((data) => {
+          setFormData({
+            title: data.title,
+            description: data.description || "",
+            modality: data.modality,
+            target: data.target,
+            start_date: data.start_date.split("T")[0],
+            duration_days: data.duration_days,
+            end_date: data.end_date.split("T")[0],
+            bet: data.bet || "",
+            private: data.private,
+          });
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error(err);
+          setMsg({ text: "Erro ao carregar dados do desafio.", type: "error" });
+          setLoading(false);
+        });
     }
-  }, [startDate, durationDays]);
+  }, [user, challengeId, API_URL]);
 
-  // Atualiza durationDays se startDate e endDate mudarem
-  useEffect(() => {
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const diffDays = Math.round((end - start) / (24 * 60 * 60 * 1000)) + 1;
-      setDurationDays(diffDays);
-    }
-  }, [startDate, endDate]);
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const payload = {
-      title,
-      description,
-      modality,
-      target: parseInt(target),
-      start_date: new Date(startDate).toISOString(),
-      duration_days: parseInt(durationDays),
-      end_date: new Date(endDate).toISOString(),
+      ...formData,
+      target: parseInt(formData.target),
+      duration_days: parseInt(formData.duration_days),
+      start_date: new Date(formData.start_date).toISOString(),
+      end_date: new Date(formData.end_date).toISOString(),
     };
+
     try {
       const res = await fetch(`${API_URL}/challenges/${challengeId}`, {
         method: "PUT",
@@ -73,100 +81,147 @@ const ChallengeEdit = ({ user }) => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        alert("Desafio atualizado com sucesso!");
-        navigate(`/challenges/${challengeId}`);
+        setMsg({ text: "Desafio atualizado com sucesso!", type: "success" });
+        setTimeout(() => navigate("/challenges"), 2000);
       } else {
-        const errData = await res.json();
-        console.error("Erro ao atualizar desafio:", errData);
-        alert("Erro ao atualizar desafio.");
+        const errorData = await res.json();
+        setMsg({ text: errorData.detail || "Erro ao atualizar desafio.", type: "error" });
       }
-    } catch (error) {
-      console.error(error);
-      alert("Erro na atualização do desafio.");
+    } catch (err) {
+      console.error(err);
+      setMsg({ text: "Erro de conexão.", type: "error" });
     }
   };
 
+  if (loading) {
+    return <div className="p-4 text-center">Carregando...</div>;
+  }
+
+  if (msg.type === "error" && !formData.title) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-red-500">{msg.text}</p>
+        <Link to="/challenges" className="text-blue-500 hover:underline">Voltar aos Desafios</Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-md mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Editar Desafio</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-gray-700">Título:</label>
+    <div className="max-w-md mx-auto p-4 bg-white rounded shadow">
+      <h2 className="text-2xl font-bold mb-4 flex items-center">
+        <FontAwesomeIcon icon={faEdit} className="mr-2 text-yellow-500" />
+        Editar Desafio
+      </h2>
+      {msg.text && (
+        <div className={`mb-4 p-2 rounded ${msg.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+          {msg.text}
+        </div>
+      )}
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label className="block text-gray-700">Título</label>
           <input
             type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            name="title"
+            value={formData.title}
+            onChange={handleChange}
             className="w-full p-2 border rounded"
             required
           />
         </div>
-        <div>
-          <label className="block text-gray-700">Descrição:</label>
+        <div className="mb-4">
+          <label className="block text-gray-700">Descrição</label>
           <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
             className="w-full p-2 border rounded"
-          ></textarea>
+          />
         </div>
-        <div>
-          <label className="block text-gray-700">Modalidade:</label>
+        <div className="mb-4">
+          <label className="block text-gray-700">Modalidade</label>
           <select
-            value={modality}
-            onChange={(e) => setModality(e.target.value)}
+            name="modality"
+            value={formData.modality}
+            onChange={handleChange}
             className="w-full p-2 border rounded"
+            required
           >
+            <option value="">Selecione</option>
             <option value="academia">Academia</option>
             <option value="corrida">Corrida</option>
-            <option value="calorias">Calorias queimadas</option>
-            <option value="passos">Passos dados</option>
-            <option value="artes marciais">Artes marciais</option>
+            <option value="calorias">Calorias</option>
+            <option value="passos">Passos</option>
+            <option value="artes marciais">Artes Marciais</option>
             <option value="personalizado">Personalizado</option>
           </select>
         </div>
-        <div>
-          <label className="block text-gray-700">Meta:</label>
+        <div className="mb-4">
+          <label className="block text-gray-700">Meta</label>
           <input
             type="number"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
+            name="target"
+            value={formData.target}
+            onChange={handleChange}
             className="w-full p-2 border rounded"
             required
           />
         </div>
-        <div>
-          <label className="block text-gray-700">Data de início:</label>
+        <div className="mb-4">
+          <label className="block text-gray-700">Data de Início</label>
           <input
             type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+            name="start_date"
+            value={formData.start_date}
+            onChange={handleChange}
             className="w-full p-2 border rounded"
             required
           />
         </div>
-        <div>
-          <label className="block text-gray-700">Quantidade de dias:</label>
+        <div className="mb-4">
+          <label className="block text-gray-700">Duração (dias)</label>
           <input
             type="number"
-            value={durationDays}
-            onChange={(e) => setDurationDays(e.target.value)}
+            name="duration_days"
+            value={formData.duration_days}
+            onChange={handleChange}
             className="w-full p-2 border rounded"
             required
           />
         </div>
-        <div>
-          <label className="block text-gray-700">Data de término:</label>
+        <div className="mb-4">
+          <label className="block text-gray-700">Data de Término</label>
           <input
             type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
+            name="end_date"
+            value={formData.end_date}
+            onChange={handleChange}
             className="w-full p-2 border rounded"
             required
           />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600"
-        >
+        <div className="mb-4">
+          <label className="block text-gray-700">Regras / Aposta</label>
+          <textarea
+            name="bet"
+            value={formData.bet}
+            onChange={handleChange}
+            className="w-full p-2 border rounded"
+          />
+        </div>
+        <div className="mb-4">
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              name="private"
+              checked={formData.private}
+              onChange={handleChange}
+              className="mr-2"
+            />
+            Desafio Privado
+          </label>
+        </div>
+        <button type="submit" className="w-full bg-yellow-500 text-white p-2 rounded hover:bg-yellow-600">
           Atualizar Desafio
         </button>
       </form>

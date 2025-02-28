@@ -1,6 +1,8 @@
 // frontend/src/components/ChallengeInvite.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faSearch, faSpinner } from "@fortawesome/free-solid-svg-icons";
 
 const ChallengeInvite = ({ user }) => {
   const [inviteCode, setInviteCode] = useState("");
@@ -12,6 +14,7 @@ const ChallengeInvite = ({ user }) => {
 
   const handleSearch = async (e) => {
     e.preventDefault();
+    setError("");
     try {
       const res = await fetch(`${API_URL}/challenges/invite/${inviteCode}`, {
         headers: {
@@ -25,7 +28,7 @@ const ChallengeInvite = ({ user }) => {
         setError("");
       } else {
         const errData = await res.json();
-        setError(errData.detail || "Erro ao buscar desafio");
+        setError(errData.detail || "Desafio não encontrado");
         setChallenge(null);
       }
     } catch (err) {
@@ -35,7 +38,6 @@ const ChallengeInvite = ({ user }) => {
     }
   };
 
-  // Assim que um desafio for encontrado, busque o status de participação
   useEffect(() => {
     if (challenge && challenge.id) {
       fetch(`${API_URL}/challenges/${challenge.id}/participant-status`, {
@@ -45,20 +47,13 @@ const ChallengeInvite = ({ user }) => {
         },
       })
         .then((res) => {
-          // Use um log para debugar
-          console.log("Response status from participant-status:", res.status);
           if (res.ok) return res.json();
-          else return null;
+          return null;
         })
-        .then((data) => {
-          console.log("Dados de participant-status:", data);
-          setParticipantStatus(data);
-        })
-        .catch((err) =>
-          console.error("Erro ao buscar participant-status:", err)
-        );
+        .then((data) => setParticipantStatus(data))
+        .catch((err) => console.error("Erro ao buscar participant-status:", err));
     }
-  }, [API_URL, challenge, user.token]);
+  }, [challenge, user.token, API_URL]);
 
   const handleJoin = async () => {
     if (!challenge) return;
@@ -72,7 +67,12 @@ const ChallengeInvite = ({ user }) => {
       });
       if (res.ok) {
         alert("Solicitação enviada! Aguarde aprovação.");
-        setParticipantStatus(true);
+        const statusRes = await fetch(`${API_URL}/challenges/${challenge.id}/participant-status`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        });
+        if (statusRes.ok) {
+          setParticipantStatus(await statusRes.json());
+        }
       } else {
         alert("Erro ao solicitar participação");
       }
@@ -85,30 +85,29 @@ const ChallengeInvite = ({ user }) => {
   return (
     <div className="max-w-md mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Buscar Desafio por Código</h1>
-      <form onSubmit={handleSearch} className="mb-4">
+      <form onSubmit={handleSearch} className="mb-4 flex">
         <input
           type="text"
           value={inviteCode}
           onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
           placeholder="Digite o código (ex: RHRPTU)"
-          className="w-full p-2 border rounded"
+          className="flex-1 p-2 border rounded-l"
           required
         />
         <button
           type="submit"
-          className="w-full bg-green-500 text-white p-2 rounded mt-2 hover:bg-green-600"
+          className="bg-green-500 text-white px-4 py-2 rounded-r hover:bg-green-600"
         >
-          Buscar
+          <FontAwesomeIcon icon={faSearch} />
         </button>
       </form>
-      {error && <p className="text-red-500">{error}</p>}
+      {error && <p className="text-red-500 mb-2">{error}</p>}
       {challenge && (
-        <div className="border p-4 rounded">
+        <div className="border p-4 rounded shadow">
           <h2 className="text-xl font-bold">{challenge.title}</h2>
           <p>{challenge.description}</p>
           <p>
-            Modalidade: <strong>{challenge.modality}</strong> | Meta:{" "}
-            <strong>{challenge.target}</strong>
+            Modalidade: <strong>{challenge.modality}</strong> | Meta: <strong>{challenge.target}</strong>
           </p>
           <p>
             Período: {new Date(challenge.start_date).toLocaleDateString()} -{" "}
@@ -120,9 +119,11 @@ const ChallengeInvite = ({ user }) => {
             </p>
           )}
           {participantStatus ? (
-            <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded">
-              Aguardando aprovação
-            </div>
+            participantStatus.approved ? (
+              <p className="text-green-600 font-semibold mt-2">Você já está participando!</p>
+            ) : (
+              <p className="text-yellow-600 font-semibold mt-2">Aguardando aprovação</p>
+            )
           ) : (
             <button
               onClick={handleJoin}
