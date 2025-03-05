@@ -82,6 +82,50 @@ def recalculate_all_points(db: Session):
     db.commit()
     logger.debug("Recalculation completed")
 
+# Em crud.py
+def recalculate_all_challenge_points(db: Session):
+    """Recalcula pontos para todos os participantes de todos os desafios."""
+    logger.debug("Iniciando recálculo de pontos para todos os desafios")
+    
+    # Obtém todos os desafios
+    challenges = db.query(models.Challenge).all()
+    for challenge in challenges:
+        logger.debug(f"Processando desafio {challenge.id}: {challenge.title}")
+        
+        # Obtém regras do desafio
+        rules = db.query(models.ChallengeRules).filter(
+            models.ChallengeRules.challenge_id == challenge.id
+        ).first()
+        
+        # Obtém todos os participantes aprovados
+        participants = db.query(models.ChallengeParticipant).filter(
+            models.ChallengeParticipant.challenge_id == challenge.id,
+            models.ChallengeParticipant.approved == True
+        ).all()
+        
+        for participant in participants:
+            # Conta check-ins do desafio
+            checkin_count = db.query(models.CheckIn).filter(
+                models.CheckIn.user_id == participant.user_id,
+                models.CheckIn.challenge_id == challenge.id
+            ).count()
+            
+            # Atualiza progresso
+            participant.progress = checkin_count
+            
+            # Calcula pontos
+            if rules:
+                challenge_points = calculate_challenge_points(checkin_count, rules)
+            else:
+                # Fallback para regra padrão
+                challenge_points = checkin_count * 5
+            
+            participant.challenge_points = challenge_points
+            logger.debug(f"Usuário {participant.user_id}: {checkin_count} check-ins, {challenge_points} pontos")
+    
+    db.commit()
+    logger.debug("Recálculo de pontos para desafios concluído")
+    
 def update_weekly_points(db: Session, user_id: int, timestamp: datetime):
     """Update WeeklyPoints for the given user and week."""
     logger.debug(f"Updating points for user {user_id} at {timestamp}")
@@ -195,3 +239,54 @@ def get_checkin(db: Session, checkin_id: int):
 
 def get_all_users(db: Session):
     return db.query(models.User).all()
+
+def calculate_challenge_points(checkin_count, rules):
+    """Calcula pontos baseado nas regras específicas do desafio."""
+    if not rules or checkin_count < rules.min_threshold:
+        return 0
+    
+    base_points = rules.min_points
+    additional_count = max(0, checkin_count - rules.min_threshold)
+    additional_points = (additional_count // rules.additional_unit) * rules.additional_points
+    
+    return base_points + additional_points
+
+def update_challenge_points(db: Session, user_id: int, challenge_id: int):
+    """Atualiza a pontuação do usuário em um desafio específico."""
+    # Buscar o desafio e suas regras
+    challenge = db.query(models.Challenge).filter(models.Challenge.id == challenge_id).first()
+    if not challenge:
+        return
+    
+    rules = db.query(models.ChallengeRules).filter(
+        models.ChallengeRules.challenge_id == challenge_id
+    ).first()
+    
+    # Buscar a participação do usuário
+    participant = db.query(models.ChallengeParticipant).filter(
+        models.ChallengeParticipant.challenge_id == challenge_id,
+        models.ChallengeParticipant.user_id == user_id
+    ).first()
+    
+    if not participant:
+        return
+    
+    # Contar checkins do desafio
+    checkin_count = db.query(models.CheckIn).filter(
+        models.CheckIn.user_id == user_id,
+        models.CheckIn.challenge_id == challenge_id
+    ).count()
+    
+    # Calcular pontos
+    if rules:
+        challenge_points = calculate_challenge_points(checkin_count, rules)
+    else:
+        # Fallback para a regra padrão
+        challenge_points = calculate_weekly_points(checkin_count)
+    
+    # Atualizar pontos do participante
+    participant.progress = checkin_count
+    participant.challenge_points = challenge_points
+    db.commit()
+    
+    return participant

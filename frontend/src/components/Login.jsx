@@ -50,7 +50,7 @@ const Login = ({ setUser }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded shadow">
+    <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded shadow">
       <h2 className="text-xl font-bold mb-4">Login</h2>
       {erro && <p className="text-red-500 mb-2">{erro}</p>}
       <form onSubmit={handleLogin}>

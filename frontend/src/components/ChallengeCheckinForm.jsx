@@ -74,7 +74,7 @@ const ChallengeCheckinForm = ({ user }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white p-6 rounded shadow">
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto p-6 rounded bg-white dark:bg-gray-800 dark:text-white shadow">
       <h2 className="text-xl font-bold mb-4 flex items-center">
         <FontAwesomeIcon icon={faCheckCircle} className="mr-2 text-green-500" />
         Check-in em Desafio

@@ -41,12 +41,12 @@ const Profile = ({ user, setUser }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 bg-white rounded shadow mt-8">
+    <div className="max-w-md mx-auto p-4 rounded mt-8 bg-white dark:bg-gray-800 dark:text-white shadow">
       <h2 className="text-2xl font-bold mb-4">Meu Perfil</h2>
       {msg && <p className="mb-2 text-green-500">{msg}</p>}
       <form onSubmit={handleUpdate}>
         <div className="mb-4">
-          <label className="block text-gray-700">Usuário:</label>
+          <label className="block text-gray-500 dark:text-gray-400">Usuário:</label>
           <input
             type="text"
             value={username}
@@ -56,7 +56,7 @@ const Profile = ({ user, setUser }) => {
           />
         </div>
         <div className="mb-4">
-          <label className="block text-gray-700">Imagem de Perfil:</label>
+          <label className="block text-gray-500 dark:text-gray-400">Imagem de Perfil:</label>
           <input
             type="file"
             onChange={(e) => setFile(e.target.files[0])}
@@ -65,7 +65,7 @@ const Profile = ({ user, setUser }) => {
         </div>
         {user.profile_image && (
           <div className="mb-4">
-            <p className="text-gray-700">Imagem Atual:</p>
+            <p className="text-gray-500 dark:text-gray-400">Imagem Atual:</p>
             <img src={user.profile_image} alt="Perfil" className="h-24 w-24 rounded-full" />
           </div>
         )}

@@ -1,6 +1,6 @@
 import random
 import string
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Text, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Text, Boolean, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -87,13 +87,31 @@ class ChallengeParticipant(Base):
     challenge_id = Column(Integer, ForeignKey("challenges.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     joined_at = Column(DateTime, default=func.now())
-    progress = Column(Integer, default=0)  # Por exemplo, quantidade de checkins feitos no desafio
-    challenge_points = Column(Integer, default=0)  # Novo campo para pontos do desafio
+    progress = Column(Integer, default=0)
+    challenge_points = Column(Integer, default=0)
     submission_image = Column(String, nullable=True)
     approved = Column(Boolean, default=False)
     challenge = relationship("Challenge", back_populates="participants")
     user = relationship("User", backref="challenge_participations")
 
+class ChallengePoints(Base):
+    __tablename__ = "challenge_points"
+    id = Column(Integer, primary_key=True, index=True)
+    challenge_id = Column(Integer, ForeignKey("challenges.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    period_start = Column(DateTime, nullable=False)  # Início do período (semana, mês, etc.)
+    period_end = Column(DateTime, nullable=False)    # Fim do período
+    checkin_count = Column(Integer, default=0)       # Contagem de check-ins no período
+    points = Column(Integer, default=0)              # Pontos calculados para o período
+    
+    # Relacionamentos
+    challenge = relationship("Challenge")
+    user = relationship("User")
+    
+    # Índices compostos para consultas eficientes
+    __table_args__ = (
+        Index('idx_challenge_points_user_period', "challenge_id", "user_id", "period_start"),
+    )
 class Achievement(Base):
     __tablename__ = "achievements"
     id = Column(Integer, primary_key=True)

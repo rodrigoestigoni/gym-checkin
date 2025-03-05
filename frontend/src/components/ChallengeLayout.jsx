@@ -1,11 +1,12 @@
-// src/components/ChallengeLayout.jsx - Corrigido para desafios não iniciados
+// ChallengeLayout.jsx
 import React, { useEffect, useRef } from 'react';
 import { useParams, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useChallenge } from '../contexts/ChallengeContext';
 import ChallengeDashboard from './ChallengeDashboard';
-import ChallengeCheckins from './ChallengeCheckins';
-import ChallengeHistory from './ChallengeHistory';
-import ChallengeRanking from './ChallengeRanking';
+import ChallengeDynamicCheckinForm from './ChallengeDynamicCheckinForm';
+import EnhancedHistory from './EnhancedHistory';
+import EnhancedChallengeRanking from './EnhancedChallengeRanking';
+import ChallengeRankingTabs from './ChallengeRankingTabs';
 
 const ChallengeLayout = ({ user }) => {
   const { challengeId } = useParams();
@@ -15,7 +16,6 @@ const ChallengeLayout = ({ user }) => {
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
-    // Prevenir execuções redundantes em modo estrito
     if (effectRan.current) return;
     
     let isMounted = true;
@@ -24,7 +24,7 @@ const ChallengeLayout = ({ user }) => {
       if (!challengeId || !user?.token) return;
       
       try {
-        console.log("ChallengeLayout: Buscando informações do desafio", challengeId);
+        console.log("ChallengeLayout: Fetching challenge information", challengeId);
         
         const res = await fetch(`${API_URL}/challenges/${challengeId}`, {
           headers: { 
@@ -38,17 +38,17 @@ const ChallengeLayout = ({ user }) => {
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
-            console.log("ChallengeLayout: Desafio encontrado e armazenado no contexto");
+            console.log("ChallengeLayout: Challenge found and stored in context");
             setActiveChallenge(data);
           }
         } else {
-          console.error("ChallengeLayout: Erro ao buscar desafio");
+          console.error("ChallengeLayout: Error fetching challenge");
           if (isMounted) {
             navigate('/challenges');
           }
         }
       } catch (err) {
-        console.error("ChallengeLayout: Erro na requisição", err);
+        console.error("ChallengeLayout: Request error", err);
         if (isMounted) {
           navigate('/challenges');
         }
@@ -61,7 +61,6 @@ const ChallengeLayout = ({ user }) => {
 
     fetchChallenge();
     
-    // Cleanup function
     return () => {
       isMounted = false;
     };
@@ -75,7 +74,7 @@ const ChallengeLayout = ({ user }) => {
     );
   }
 
-  // Verificar se o desafio já iniciou
+  // Check if challenge has started
   const isStarted = activeChallenge && new Date(activeChallenge.start_date) <= new Date();
 
   return (
@@ -97,16 +96,15 @@ const ChallengeLayout = ({ user }) => {
       <div className="flex overflow-x-auto mb-6 bg-white dark:bg-gray-800 rounded-lg shadow">
         <NavLink 
           to={`/challenge/${challengeId}/dashboard`} 
-          className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600'}`}
+          className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600 dark:text-gray-400'}`}
         >
           Dashboard
         </NavLink>
         
-        {/* Só mostra aba de Check-ins se o desafio já tiver iniciado */}
         {isStarted && (
           <NavLink 
             to={`/challenge/${challengeId}/checkins`} 
-            className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600'}`}
+            className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600 dark:text-gray-400'}`}
           >
             Check-ins
           </NavLink>
@@ -114,14 +112,14 @@ const ChallengeLayout = ({ user }) => {
         
         <NavLink 
           to={`/challenge/${challengeId}/history`} 
-          className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600'}`}
+          className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600 dark:text-gray-400'}`}
         >
           Histórico
         </NavLink>
         
         <NavLink 
           to={`/challenge/${challengeId}/ranking`} 
-          className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600'}`}
+          className={({ isActive }) => `flex-1 px-4 py-3 text-center ${isActive ? 'border-b-2 border-green-500 font-bold' : 'text-gray-600 dark:text-gray-400'}`}
         >
           Ranking
         </NavLink>
@@ -129,9 +127,9 @@ const ChallengeLayout = ({ user }) => {
 
       <Routes>
         <Route path="dashboard" element={<ChallengeDashboard user={user} />} />
-        <Route path="checkins" element={isStarted ? <ChallengeCheckins user={user} /> : <Navigate to={`/challenge/${challengeId}/dashboard`} replace />} />
-        <Route path="history" element={<ChallengeHistory user={user} />} />
-        <Route path="ranking" element={<ChallengeRanking user={user} />} />
+        <Route path="checkins" element={isStarted ? <ChallengeDynamicCheckinForm user={user} /> : <Navigate to={`/challenge/${challengeId}/dashboard`} replace />} />
+        <Route path="history" element={<EnhancedHistory user={user} challengeId={challengeId} />} />
+        <Route path="ranking" element={<ChallengeRankingTabs user={user} />} />
         <Route path="*" element={<Navigate to={`/challenge/${challengeId}/dashboard`} replace />} />
       </Routes>
     </div>

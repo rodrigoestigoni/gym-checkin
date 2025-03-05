@@ -44,7 +44,7 @@ const CheckinForm = ({ user }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white p-6 rounded shadow">
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto p-6 rounded bg-white dark:bg-gray-800 dark:text-white shadow">
       <h2 className="text-xl font-bold mb-4 flex items-center">
         <FontAwesomeIcon icon={faCheckCircle} className="mr-2 text-green-500" />
         Fazer Checkin
@@ -55,35 +55,35 @@ const CheckinForm = ({ user }) => {
         </div>
       )}
       <div className="mb-4">
-        <label className="block text-gray-700">
-          Tempo do treino (minutos) <span className="text-sm text-gray-400">(opcional)</span>
+        <label className="block text-gray-500 dark:text-gray-400">
+          Tempo do treino (minutos) <span className="text-sm text-gray-500 dark:text-gray-400">(opcional)</span>
         </label>
         <input 
           type="number" 
           value={duration}
           onChange={e => setDuration(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border rounded text-gray-500 dark:text-gray-400"
         />
       </div>
       <div className="mb-4">
-        <label className="block text-gray-700">
-          Descrição <span className="text-sm text-gray-400">(opcional)</span>
+        <label className="block text-gray-500 dark:text-gray-400">
+          Descrição <span className="text-sm text-gray-500 dark:text-gray-400">(opcional)</span>
         </label>
         <textarea 
           value={description}
           onChange={e => setDescription(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border rounded text-gray-500 dark:text-gray-400"
         ></textarea>
       </div>
       <div className="mb-4">
-        <label className="block text-gray-700">
-          Data do Checkin <span className="text-sm text-gray-400">(se não marcado, usa a data atual)</span>
+        <label className="block text-gray-500 dark:text-gray-400">
+          Data do Checkin <span className="text-sm text-gray-500 dark:text-gray-400">(se não marcado, usa a data atual)</span>
         </label>
         <input 
           type="date" 
           value={date}
           onChange={e => setDate(e.target.value)}
-          className="w-full p-2 border rounded"
+          className="w-full p-2 border rounded text-gray-500 dark:text-gray-400"
         />
       </div>
       <button type="submit" className="w-full bg-green-500 text-white p-2 rounded hover:bg-green-600">

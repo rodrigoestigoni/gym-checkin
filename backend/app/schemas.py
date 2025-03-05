@@ -42,6 +42,7 @@ class CheckIn(CheckInBase):
     id: int
     user_id: int
     timestamp: datetime
+    challenge_id: int
 
     class Config:
         orm_mode = True

@@ -22,7 +22,7 @@ const Header = ({ user, setUser }) => {
   };
 
   return (
-    <header className="bg-white shadow">
+    <header className="bg-white dark:bg-gray-800 dark:text-white shadow">
       <div className="container mx-auto flex items-center justify-between p-4">
         {/* Área esquerda: botão mobile (apenas em telas pequenas) */}
         <div className="flex md:hidden">
@@ -83,7 +83,7 @@ const Header = ({ user, setUser }) => {
       </div>
       {/* Menu mobile: aparece quando menuOpen=true */}
       {menuOpen && (
-        <nav className="md:hidden bg-white shadow">
+        <nav className="md:hidden bg-white dark:bg-gray-800 shadow">
           <ul className="flex flex-col space-y-2 p-4">
             {user ? (
               <>

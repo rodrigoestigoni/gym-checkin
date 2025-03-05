@@ -31,7 +31,7 @@ const RankingWeekly = () => {
       <div className="flex flex-wrap justify-center gap-2">
         {users.map((user) => (
           <div key={user.id} className="flex flex-col items-center">
-            <div className="bg-white dark:bg-gray-800 p-2 rounded-full border shadow h-20 w-20 sm:h-24 sm:w-24">
+            <div className="bg-white p-2 rounded-full border shadow h-20 w-20 sm:h-24 sm:w-24">
               {user.profile_image ? (
                 <img
                   src={user.profile_image}
@@ -73,7 +73,7 @@ const RankingWeekly = () => {
                     {groupedPodium[rank].map((user) => (
                       <div key={user.id} className="flex flex-col items-center">
                         <div className="relative">
-                          <div className="bg-white dark:bg-gray-800 p-2 rounded-full border-4 border-yellow-400 shadow-lg h-24 w-24 sm:h-28 sm:w-28">
+                          <div className="bg-white p-2 rounded-full border-4 border-yellow-400 shadow-lg h-24 w-24 sm:h-28 sm:w-28">
                             {user.profile_image ? (
                               <img
                                 src={user.profile_image}
@@ -102,7 +102,7 @@ const RankingWeekly = () => {
             <>
               <h2 className="text-2xl font-bold mb-4 text-center">Outros Participantes</h2>
               <div className="overflow-x-auto">
-                <table className="min-w-full bg-white dark:bg-gray-800 shadow rounded text-sm">
+                <table className="min-w-full bg-white shadow rounded text-sm">
                   <thead>
                     <tr>
                       <th className="py-2 border px-2">Posição</th>

@@ -5,8 +5,6 @@ import Header from "./components/Header";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import CheckinForm from "./components/CheckinForm";
-import Dashboard from "./components/Dashboard";
-import History from "./components/History";
 import RankingTabs from "./components/RankingTabs";
 import PrivateRoute from "./components/PrivateRoute";
 import Profile from "./components/Profile";
@@ -15,10 +13,13 @@ import ChallengeEdit from "./components/ChallengeEdit";
 import ChallengeCreate from "./components/ChallengeCreate";
 import ChallengeDetailByCode from "./components/ChallengeDetailByCode";
 import ChallengeDetail from "./components/ChallengeDetail";
-import ChallengeRanking from "./components/ChallengeRanking";
-import ChallengeCheckinForm from "./components/ChallengeCheckinForm";
 import ChallengeLayout from "./components/ChallengeLayout";
 import ImprovedDashboard from "./components/ImprovedDashboard";
+
+import NewDashboard from "./components/NewDashboard";
+import EnhancedHistory from "./components/EnhancedHistory";
+import ChallengeDynamicCheckinForm from "./components/ChallengeDynamicCheckinForm";
+
 import { useAuth } from "./services/api";
 
 // Componente intermediário para limpar o contexto ao navegar entre rotas
@@ -90,9 +91,11 @@ const App = () => {
               <Route path="/login" element={<Login setUser={setUser} />} />
               <Route path="/register" element={<Register />} />
               <Route path="/checkin" element={<PrivateRoute user={user}><CheckinForm user={user} /></PrivateRoute>} />
-              <Route path="/dashboard" element={<PrivateRoute user={user}><Dashboard user={user} /></PrivateRoute>} />
-              <Route path="/history" element={<PrivateRoute user={user}><History user={user} /></PrivateRoute>} />
+              
+              <Route path="/dashboard" element={<PrivateRoute user={user}><NewDashboard user={user} /></PrivateRoute>} />
+              <Route path="/history" element={<PrivateRoute user={user}><EnhancedHistory user={user} challengeId="5" /></PrivateRoute>} />
               <Route path="/ranking" element={<PrivateRoute user={user}><RankingTabs /></PrivateRoute>} />
+
               <Route path="/profile" element={<PrivateRoute user={user}><Profile user={user} setUser={setUser} /></PrivateRoute>} />
               
               <Route path="/home" element={<PrivateRoute user={user}><ImprovedDashboard user={user} /></PrivateRoute>} />
@@ -102,13 +105,12 @@ const App = () => {
               <Route path="/challenges/create" element={<PrivateRoute user={user}><ChallengeCreate user={user} /></PrivateRoute>} />
               <Route path="/challenge/:code" element={<PrivateRoute user={user}><ChallengeDetailByCode user={user} /></PrivateRoute>} />
               <Route path="/challenges/:challengeId" element={<PrivateRoute user={user}><ChallengeDetail user={user} /></PrivateRoute>} />
-              <Route path="/challenge-checkin" element={<PrivateRoute user={user}><ChallengeCheckinForm user={user} /></PrivateRoute>} />
               
               <Route path="/challenge/:challengeId/*" element={
                 <PrivateRoute user={user}><ChallengeLayout user={user} /></PrivateRoute>
               } />
               
-              <Route path="/" element={<PrivateRoute user={user}><ImprovedDashboard user={user} /></PrivateRoute>} />
+              <Route path="/" element={<PrivateRoute user={user}><NewDashboard user={user} /></PrivateRoute>} />
             </Routes>
           </RouteChangeHandler>
         </div>

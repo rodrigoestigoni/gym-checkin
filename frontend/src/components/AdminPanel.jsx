@@ -20,7 +20,7 @@ const AdminPanel = ({ user }) => {
   return (
     <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-3xl font-bold mb-4">Painel Administrativo</h1>
-      <table className="min-w-full bg-white">
+      <table className="min-w-full bg-white dark:bg-gray-800">
         <thead>
           <tr>
             <th className="py-2 border">ID</th>

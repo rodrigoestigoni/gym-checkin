@@ -1,15 +1,23 @@
-// Updated RankingTabs.jsx
+// ChallengeRankingTabs.jsx
 import React, { useState } from "react";
-import EnhancedWeeklyRanking from "./EnhancedWeeklyRanking";
-import OverallRanking from "./OverallRanking";
+import { useParams } from "react-router-dom";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrophy, faMedal } from '@fortawesome/free-solid-svg-icons';
+import { useChallenge } from '../contexts/ChallengeContext';
+import ChallengeWeeklyRanking from "./ChallengeWeeklyRanking";
+import ChallengeOverallRanking from "./ChallengeOverallRanking";
 
-const RankingTabs = () => {
+const ChallengeRankingTabs = ({ user }) => {
+  const { challengeId } = useParams();
+  const { activeChallenge } = useChallenge();
   const [activeTab, setActiveTab] = useState("weekly");
 
   return (
     <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-4 text-center">
+        {activeChallenge?.title || 'Ranking do Desafio'}
+      </h1>
+      
       <div className="flex border-b mb-4">
         <button
           className={`flex-1 px-4 py-2 focus:outline-none flex items-center justify-center ${
@@ -31,10 +39,13 @@ const RankingTabs = () => {
         </button>
       </div>
       <div>
-        {activeTab === "weekly" ? <EnhancedWeeklyRanking /> : <OverallRanking />}
+        {activeTab === "weekly" ? 
+          <ChallengeWeeklyRanking user={user} challengeId={challengeId} /> : 
+          <ChallengeOverallRanking user={user} challengeId={challengeId} />
+        }
       </div>
     </div>
   );
 };
 
-export default RankingTabs;
+export default ChallengeRankingTabs;

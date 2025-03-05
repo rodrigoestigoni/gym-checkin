@@ -404,13 +404,12 @@ def create_challenge_checkin(
     checkin_data["challenge_id"] = challenge_id
     db_checkin = models.CheckIn(**checkin_data)
     db.add(db_checkin)
-
-    # Atualiza o progresso do participante (incrementa em 1 para cada check-in)
-    participation.progress += 1
     db.commit()
     db.refresh(db_checkin)
-    db.refresh(participation)
-
+    
+    # Atualiza os pontos do desafio
+    crud.update_challenge_points(db, current_user.id, challenge_id)
+    
     return db_checkin
 
 @router.get("/challenges/invite/{code}", response_model=schemas.Challenge)
@@ -493,6 +492,13 @@ def recalculate_points(db: Session = Depends(get_db), current_user: schemas.User
         raise HTTPException(status_code=403, detail="Acesso negado")
     crud.recalculate_all_points(db)
     return {"detail": "Points recalculated successfully"}
+
+@router.post("/admin/recalculate-challenge-points", status_code=200)
+def recalculate_challenge_points(db: Session = Depends(get_db), current_user: schemas.User = Depends(get_current_user)):
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    crud.recalculate_all_challenge_points(db)
+    return {"detail": "Challenge points recalculated successfully"}
 
 @router.get("/ranking/weekly")
 def weekly_ranking(db: Session = Depends(get_db)):

@@ -107,7 +107,7 @@ const ChallengeEdit = ({ user }) => {
   }
 
   return (
-    <div className="max-w-md mx-auto p-4 bg-white rounded shadow">
+    <div className="max-w-md mx-auto p-4 bg-white dark:bg-gray-800 rounded shadow">
       <h2 className="text-2xl font-bold mb-4 flex items-center">
         <FontAwesomeIcon icon={faEdit} className="mr-2 text-yellow-500" />
         Editar Desafio

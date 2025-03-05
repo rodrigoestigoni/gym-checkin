@@ -26,10 +26,8 @@ const History = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const limit = 10;
   
-  // Contador para evitar chamadas infinitas - apenas para debug
   const [fetchCounter, setFetchCounter] = useState(0);
 
-  // Função para buscar dados - será chamada UMA ÚNICA VEZ
   useEffect(() => {
     if (!user?.id) return;
     

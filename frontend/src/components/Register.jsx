@@ -55,7 +55,7 @@ const Register = () => {
   console.log("Register component renderizado");
 
   return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded shadow mt-8">
+    <div className="max-w-md mx-auto bg-white dark:bg-gray-800 p-6 rounded shadow mt-8">
       <h2 className="text-2xl font-bold mb-4">Registro de Usuário</h2>
       {error && <p className="text-red-500 mb-2">{error}</p>}
       {msg && <p className="text-green-500 mb-2">{msg}</p>}

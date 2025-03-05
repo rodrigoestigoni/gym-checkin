@@ -1,22 +1,44 @@
-// frontend/src/components/RankingWeekly.jsx
+// ChallengeWeeklyRanking.jsx
 import React, { useEffect, useState } from "react";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
-const RankingWeekly = () => {
+const ChallengeWeeklyRanking = ({ user, challengeId }) => {
   const [podium, setPodium] = useState([]);
   const [others, setOthers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
-    fetch(`${API_URL}/ranking/weekly`)
-      .then((res) => res.json())
+    if (!challengeId || !user?.token) return;
+    
+    setLoading(true);
+    
+    fetch(`${API_URL}/challenges/${challengeId}/ranking?period=weekly`, {
+      headers: { 
+        Authorization: `Bearer ${user.token}`,
+        "Cache-Control": "no-cache"
+      }
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Erro ao buscar ranking do desafio");
+        return res.json();
+      })
       .then((data) => {
-        console.log("Podium received:", data.podium);
-        console.log("Others received:", data.others);
+        console.log("Challenge weekly podium received:", data.podium);
+        console.log("Challenge weekly others received:", data.others);
         setPodium(data.podium || []);
         setOthers(data.others || []);
+        setLoading(false);
+        setError(null);
       })
-      .catch((err) => console.error(err));
-  }, [API_URL]);
+      .catch((err) => {
+        console.error("Error fetching challenge weekly ranking:", err);
+        setError("Erro ao carregar ranking semanal do desafio");
+        setLoading(false);
+      });
+  }, [API_URL, challengeId, user?.token]);
 
   const groupedPodium = podium.reduce((acc, user) => {
     const rank = user.rank;
@@ -25,40 +47,27 @@ const RankingWeekly = () => {
     return acc;
   }, {});
 
-  const renderPodiumGroup = (rank, users) => (
-    <div key={rank} className="flex flex-col items-center mx-2">
-      <div className="mb-2 font-bold text-lg">{rank}º Lugar</div>
-      <div className="flex flex-wrap justify-center gap-2">
-        {users.map((user) => (
-          <div key={user.id} className="flex flex-col items-center">
-            <div className="bg-white dark:bg-gray-800 p-2 rounded-full border shadow h-20 w-20 sm:h-24 sm:w-24">
-              {user.profile_image ? (
-                <img
-                  src={user.profile_image}
-                  alt={user.username}
-                  className="h-full w-full rounded-full object-cover"
-                />
-              ) : (
-                <div className="h-full w-full rounded-full bg-gray-300 flex items-center justify-center text-xl">
-                  {user.username?.charAt(0).toUpperCase() || ""}
-                </div>
-              )}
-            </div>
-            <div className="text-xs mt-1">{user.username}</div>
-            <div className="text-[10px] text-gray-500">
-              {user.weekly_score} treinos
-            </div>
-          </div>
-        ))}
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-100 dark:bg-red-900 dark:bg-opacity-20 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded flex items-center">
+        <FontAwesomeIcon icon={faExclamationTriangle} className="mr-2" />
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4 text-center">Podium Semanal</h1>
       {podium.length === 0 && others.length === 0 ? (
-        <p className="text-center text-gray-500">Nenhum usuário com mais de 1 treino esta semana.</p>
+        <p className="text-center text-gray-500 dark:text-gray-400">Nenhum participante no ranking semanal deste desafio.</p>
       ) : (
         <>
           <div className="flex flex-col sm:flex-row sm:justify-center items-center mb-8 space-y-6 sm:space-y-0">
@@ -81,7 +90,7 @@ const RankingWeekly = () => {
                                 className="h-full w-full rounded-full object-cover"
                               />
                             ) : (
-                              <div className="h-full w-full rounded-full bg-gray-300 flex items-center justify-center text-2xl font-bold">
+                              <div className="h-full w-full rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-2xl font-bold">
                                 {user.username?.charAt(0).toUpperCase() || ""}
                               </div>
                             )}
@@ -105,18 +114,18 @@ const RankingWeekly = () => {
                 <table className="min-w-full bg-white dark:bg-gray-800 shadow rounded text-sm">
                   <thead>
                     <tr>
-                      <th className="py-2 border px-2">Posição</th>
-                      <th className="py-2 border px-2">Usuário</th>
-                      <th className="py-2 border px-2">Imagem</th>
-                      <th className="py-2 border px-2">Treinos</th>
+                      <th className="py-2 border px-2 dark:border-gray-700">Posição</th>
+                      <th className="py-2 border px-2 dark:border-gray-700">Usuário</th>
+                      <th className="py-2 border px-2 dark:border-gray-700">Imagem</th>
+                      <th className="py-2 border px-2 dark:border-gray-700">Treinos</th>
                     </tr>
                   </thead>
                   <tbody>
                     {others.map((user) => (
                       <tr key={user.id}>
-                        <td className="py-2 border text-center px-2">{user.rank}</td>
-                        <td className="py-2 border text-center px-2">{user.username}</td>
-                        <td className="py-2 border text-center px-2">
+                        <td className="py-2 border text-center px-2 dark:border-gray-700">{user.rank}</td>
+                        <td className="py-2 border text-center px-2 dark:border-gray-700">{user.username}</td>
+                        <td className="py-2 border text-center px-2 dark:border-gray-700">
                           {user.profile_image ? (
                             <img
                               src={user.profile_image}
@@ -124,10 +133,10 @@ const RankingWeekly = () => {
                               className="h-8 w-8 rounded-full mx-auto object-cover"
                             />
                           ) : (
-                            <span className="text-gray-500">Sem imagem</span>
+                            <span className="text-gray-500 dark:text-gray-400">Sem imagem</span>
                           )}
                         </td>
-                        <td className="py-2 border text-center px-2">{user.weekly_score}</td>
+                        <td className="py-2 border text-center px-2 dark:border-gray-700">{user.weekly_score}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -141,4 +150,4 @@ const RankingWeekly = () => {
   );
 };
 
-export default RankingWeekly;
+export default ChallengeWeeklyRanking;
