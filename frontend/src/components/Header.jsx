@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -19,25 +19,63 @@ const Header = ({ user, setUser }) => {
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   // Buscar desafios ativos quando o usuário estiver logado
+  const fetchInProgress = useRef(false);
+  const effectRan = useRef(false);
+
   useEffect(() => {
-    if (user?.token) {
-      fetch(`${API_URL}/challenge-participation/`, {
-        headers: { Authorization: `Bearer ${user.token}` },
-      })
-        .then(res => res.json())
-        .then(data => {
-          // Filtrar desafios ativos (data atual entre start_date e end_date)
+    // Evitar requisições duplicadas e múltiplas execuções em modo estrito
+    if (fetchInProgress.current || effectRan.current || !user?.token) return;
+    
+    let isMounted = true;
+    fetchInProgress.current = true;
+    const controller = new AbortController();
+    
+    const fetchActiveChallenges = async () => {
+      try {
+        const res = await fetch(`${API_URL}/challenge-participation/`, {
+          headers: { 
+            Authorization: `Bearer ${user.token}`,
+            "Cache-Control": "no-cache" 
+          },
+          signal: controller.signal
+        });
+        
+        if (!isMounted) return;
+        
+        if (res.ok) {
+          const data = await res.json();
+          
+          // Filtrar desafios ativos
           const now = new Date();
           const active = data.filter(item => {
             const startDate = new Date(item.challenge.start_date);
             const endDate = new Date(item.challenge.end_date);
             return now >= startDate && now <= endDate && item.participant.approved;
           });
-          setActiveChallenges(active);
-        })
-        .catch(err => console.error("Erro ao buscar desafios ativos:", err));
-    }
-  }, [user, API_URL]);
+          
+          if (isMounted) {
+            setActiveChallenges(active);
+            effectRan.current = true;
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError' && isMounted) {
+          console.error("Erro ao buscar desafios ativos:", err);
+        }
+      } finally {
+        if (isMounted) {
+          fetchInProgress.current = false;
+        }
+      }
+    };
+    
+    fetchActiveChallenges();
+    
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [user?.token, API_URL]);
 
   const handleLogout = () => {
     // Limpa localStorage e o estado do usuário
@@ -126,10 +164,6 @@ const Header = ({ user, setUser }) => {
                 )}
               </div>
 
-              <Link to="/dashboard" className="hover:text-green-500">Dashboard</Link>
-              <Link to="/history" className="hover:text-green-500">Histórico</Link>
-              <Link to="/ranking" className="hover:text-green-500">Ranking</Link>
-              
               {user.is_admin && (
                 <Link to="/admin" className="hover:text-green-500 flex items-center">
                   <FontAwesomeIcon icon={faUserCog} className="mr-1" />
