@@ -1,17 +1,17 @@
-// ChallengeDashboard.jsx - Atualizado para seguir o estilo do NewDashboard
+// ChallengeDashboard.jsx - Corrigido para combinar o estilo do NewDashboard e evitar loops
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faCheckCircle, 
   faChartLine, 
-  faUsers, 
   faDumbbell, 
   faTrophy, 
   faHistory,
-  faFire,
   faCalendarCheck,
-  faPlus
+  faFire,
+  faPlus,
+  faUsers
 } from '@fortawesome/free-solid-svg-icons';
 import { useChallenge } from '../contexts/ChallengeContext';
 import RecentActivityFeed from "./RecentActivityFeed";
@@ -34,20 +34,31 @@ const ChallengeDashboard = ({ user }) => {
     points: 0,
     ranking: 0
   });
+  
+  // Usar referencias para controlar o estado do componente
   const effectRan = useRef(false);
+  const isMounted = useRef(true);
+  
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const MIN_TRAINING_DAYS = 3; // Mínimo de dias de treino
+
+  // Importante: Controlar o ciclo de vida do componente
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   // UseEffect com controle correto para evitar loops infinitos
   useEffect(() => {
     // Prevenindo múltiplas execuções no modo estrito do React
     if (effectRan.current) return;
+    if (!challengeId || !user?.token) return;
     
-    let isMounted = true; // Flag para verificar se o componente ainda está montado
+    const controller = new AbortController();
     
     const fetchData = async () => {
-      if (!challengeId || !user?.token) return;
-      
       try {
         console.log("Iniciando requisição para o desafio:", challengeId);
         
@@ -57,16 +68,17 @@ const ChallengeDashboard = ({ user }) => {
             Authorization: `Bearer ${user.token}`,
             "Cache-Control": "no-cache"
           },
+          signal: controller.signal
         });
         
-        if (!isMounted) return; // Evita atualizar o estado se o componente foi desmontado
+        if (!isMounted.current) return; // Evita atualizar o estado se o componente foi desmontado
         
         if (challengeRes.ok) {
           const challenge = await challengeRes.json();
           console.log("Dados do desafio recebidos:", challenge);
           setChallengeData(challenge);
           
-          if (isMounted) {
+          if (isMounted.current) {
             setActiveChallenge(challenge);
           }
           
@@ -78,9 +90,10 @@ const ChallengeDashboard = ({ user }) => {
                 Authorization: `Bearer ${user.token}`,
                 "Cache-Control": "no-cache"
               },
+              signal: controller.signal
             });
             
-            if (!isMounted) return;
+            if (!isMounted.current) return;
             
             if (participantsRes.ok) {
               const participantsData = await participantsRes.json();
@@ -94,16 +107,15 @@ const ChallengeDashboard = ({ user }) => {
                 Authorization: `Bearer ${user.token}`,
                 "Cache-Control": "no-cache"
               },
+              signal: controller.signal
             });
             
-            if (!isMounted) return;
+            if (!isMounted.current) return;
             
             if (checkinsRes.ok) {
               const checkinsData = await checkinsRes.json();
               
               // Filtramos checkins para este desafio específico
-              // Como os checkins podem não ter o challenge_id definido corretamente,
-              // podemos filtrar pelo período do desafio
               const startDate = new Date(challenge.start_date);
               const endDate = new Date(challenge.end_date);
               
@@ -143,18 +155,19 @@ const ChallengeDashboard = ({ user }) => {
                 return { day, checkins: dayCheckins };
               });
               
-              setWeekData(weekProcessed);
+              if (isMounted.current) {
+                setWeekData(weekProcessed);
+              }
               
               // Calcular checkins da semana anterior
               const lastWeekStart = new Date(weekStart);
               lastWeekStart.setDate(lastWeekStart.getDate() - 7);
               const lastWeekEnd = new Date(lastWeekStart);
-              lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
-              lastWeekEnd.setHours(23, 59, 59, 999);
+              lastWeekEnd.setDate(lastWeekEnd.getDate() + 7);
               
               const lastWeekCheckins = filteredCheckins.filter(checkin => {
                 const checkinDate = new Date(checkin.timestamp);
-                return checkinDate >= lastWeekStart && checkinDate <= lastWeekEnd;
+                return checkinDate >= lastWeekStart && checkinDate < lastWeekEnd;
               });
               
               // Calcular sequência atual
@@ -183,33 +196,44 @@ const ChallengeDashboard = ({ user }) => {
               }
               
               // Atualizar estatísticas
-              setStats({
-                totalCheckins,
-                streakDays,
-                thisWeekCheckins: thisWeekCheckins.length,
-                lastWeekCheckins: lastWeekCheckins.length,
-                averagePerWeek: Math.round((thisWeekCheckins.length + lastWeekCheckins.length) / 2),
-                points: 0, // Será atualizado depois
-                ranking: 0  // Será atualizado depois
-              });
+              if (isMounted.current) {
+                setStats({
+                  totalCheckins,
+                  streakDays,
+                  thisWeekCheckins: thisWeekCheckins.length,
+                  lastWeekCheckins: lastWeekCheckins.length,
+                  averagePerWeek: Math.round((thisWeekCheckins.length + lastWeekCheckins.length) / 2),
+                  points: 0, // Será atualizado depois
+                  ranking: 0  // Será atualizado depois
+                });
+              }
               
               // Buscar ranking para atualizar posição do usuário
-              if (challenge) {
-                const rankingRes = await fetch(`${API_URL}/challenges/${challengeId}/ranking?period=overall`, {
-                  headers: { Authorization: `Bearer ${user.token}` }
-                });
-                
-                if (rankingRes.ok) {
-                  const rankingData = await rankingRes.json();
-                  const combinedRanking = [...(rankingData.podium || []), ...(rankingData.others || [])];
-                  const userRank = combinedRanking.findIndex(item => item.id === user.id) + 1;
-                  const userPoints = combinedRanking.find(item => item.id === user.id)?.challenge_points || 0;
+              if (challenge && isMounted.current) {
+                try {
+                  const rankingRes = await fetch(`${API_URL}/challenges/${challengeId}/ranking?period=overall`, {
+                    headers: { Authorization: `Bearer ${user.token}` },
+                    signal: controller.signal
+                  });
                   
-                  setStats(prevStats => ({
-                    ...prevStats,
-                    points: userPoints,
-                    ranking: userRank > 0 ? userRank : 0
-                  }));
+                  if (!isMounted.current) return;
+                  
+                  if (rankingRes.ok) {
+                    const rankingData = await rankingRes.json();
+                    const combinedRanking = [...(rankingData.podium || []), ...(rankingData.others || [])];
+                    const userRank = combinedRanking.findIndex(item => item.id === user.id) + 1;
+                    const userPoints = combinedRanking.find(item => item.id === user.id)?.challenge_points || 0;
+                    
+                    if (isMounted.current) {
+                      setStats(prevStats => ({
+                        ...prevStats,
+                        points: userPoints,
+                        ranking: userRank > 0 ? userRank : 0
+                      }));
+                    }
+                  }
+                } catch (error) {
+                  console.error("Erro ao buscar ranking:", error);
                 }
               }
             }
@@ -218,14 +242,20 @@ const ChallengeDashboard = ({ user }) => {
           }
         } else {
           console.error("Erro ao buscar dados do desafio:", await challengeRes.text());
+          if (isMounted.current) {
+            setError("Erro ao carregar dados do desafio");
+          }
         }
       } catch (err) {
-        if (isMounted) {
+        // Ignorar erros de abortamento
+        if (err.name === 'AbortError') return;
+        
+        if (isMounted.current) {
           console.error("Erro na requisição:", err);
           setError("Erro ao carregar dados do desafio. Por favor, tente novamente.");
         }
       } finally {
-        if (isMounted) {
+        if (isMounted.current) {
           setLoading(false);
           effectRan.current = true;
         }
@@ -236,11 +266,17 @@ const ChallengeDashboard = ({ user }) => {
     setLoading(true);
     fetchData();
     
-    // Cleanup function para evitar memory leaks
+    // Função de limpeza para abortar requisições pendentes
     return () => {
-      isMounted = false;
+      controller.abort();
     };
   }, [challengeId, user.id, user.token, setActiveChallenge, API_URL]);
+
+  const resetData = () => {
+    effectRan.current = false;
+    setLoading(true);
+    setError(null);
+  };
 
   if (loading) {
     return (
@@ -255,7 +291,7 @@ const ChallengeDashboard = ({ user }) => {
       <div className="text-center py-8">
         <p className="text-red-500">{error}</p>
         <button 
-          onClick={() => window.location.reload()}
+          onClick={resetData}
           className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
         >
           Tentar novamente
@@ -298,7 +334,7 @@ const ChallengeDashboard = ({ user }) => {
   const totalWeeklyCheckins = weekData.reduce((total, day) => total + day.checkins.length, 0);
   const missing = totalWeeklyCheckins < MIN_TRAINING_DAYS ? MIN_TRAINING_DAYS - totalWeeklyCheckins : 0;
   const trend = stats.thisWeekCheckins - stats.lastWeekCheckins;
-
+  
   return (
     <div className="p-4">
       {/* Status Banner */}

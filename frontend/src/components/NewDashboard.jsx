@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faPlus, faFire, faTrophy, faChartLine, 
   faCheckCircle, faCalendarCheck, faHistory,
-  faExclamationTriangle, faInfoCircle
+  faExclamationTriangle
 } from '@fortawesome/free-solid-svg-icons';
 
 const NewDashboard = ({ user }) => {
@@ -26,18 +26,28 @@ const NewDashboard = ({ user }) => {
   
   // Referência para controlar se o efeito já foi executado
   const effectRan = useRef(false);
+  // Referência para controlar se o componente está montado
+  const isMounted = useRef(true);
   
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const MIN_TRAINING_DAYS = 3;
 
   useEffect(() => {
+    // Crucial: defina o isMounted como true quando o componente montar
+    isMounted.current = true;
+    
+    // Retorna uma função de limpeza que será executada quando o componente desmontar
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     // Prevenir execuções múltiplas (especialmente em modo estrito)
     if (effectRan.current) return;
-    
     if (!user?.id || !user?.token) return;
     
-    // Flag para limpar recursos quando o componente for desmontado
-    let isMounted = true;
+    const controller = new AbortController();
     
     const fetchAllData = async () => {
       try {
@@ -51,7 +61,8 @@ const NewDashboard = ({ user }) => {
             headers: { 
               Authorization: `Bearer ${user.token}`,
               "Cache-Control": "no-cache" 
-            }
+            },
+            signal: controller.signal
           }),
           
           // All checkins for stats
@@ -59,12 +70,14 @@ const NewDashboard = ({ user }) => {
             headers: { 
               Authorization: `Bearer ${user.token}`,
               "Cache-Control": "no-cache"
-            }
+            },
+            signal: controller.signal
           }),
           
           // Ranking data
           fetch(`${API_URL}/ranking/overall`, { 
-            headers: { "Cache-Control": "no-cache" }
+            headers: { "Cache-Control": "no-cache" },
+            signal: controller.signal
           }),
           
           // Active challenges - APENAS UMA CHAMADA
@@ -72,12 +85,13 @@ const NewDashboard = ({ user }) => {
             headers: { 
               Authorization: `Bearer ${user.token}`,
               "Cache-Control": "no-cache"
-            }
+            },
+            signal: controller.signal
           })
         ]);
         
         // Verificar se o componente ainda está montado
-        if (!isMounted) return;
+        if (!isMounted.current) return;
         
         // Process weekly data
         if (weeklyRes.ok) {
@@ -93,7 +107,7 @@ const NewDashboard = ({ user }) => {
             return { day, checkins: dayCheckins };
           });
           
-          if (isMounted) setWeekData(weekProcessed);
+          if (isMounted.current) setWeekData(weekProcessed);
         }
         
         // Process all checkins for stats
@@ -169,7 +183,7 @@ const NewDashboard = ({ user }) => {
             }
           }
           
-          if (isMounted) {
+          if (isMounted.current) {
             setStats({
               totalCheckins,
               thisWeekCheckins,
@@ -193,7 +207,7 @@ const NewDashboard = ({ user }) => {
             userRanking = rankingData.overall.indexOf(foundUser) + 1;
             
             // Update stats with ranking info
-            if (isMounted) {
+            if (isMounted.current) {
               setStats(prev => ({
                 ...prev,
                 ranking: userRanking
@@ -206,7 +220,7 @@ const NewDashboard = ({ user }) => {
         if (challengesRes.ok) {
           const challengeData = await challengesRes.json();
           
-          // Filtrar apenas desafios ativos
+          // Filtrar apenas desafios ativos com participação aprovada
           const now = new Date();
           const active = challengeData.filter(item => {
             const startDate = new Date(item.challenge.start_date);
@@ -214,17 +228,20 @@ const NewDashboard = ({ user }) => {
             return now >= startDate && now <= endDate && item.participant.approved;
           });
           
-          if (isMounted) setActiveChallenges(active);
+          if (isMounted.current) setActiveChallenges(active);
         }
         
-        if (isMounted) {
+        if (isMounted.current) {
           setLoading(false);
           // Marcar que o efeito já foi executado
           effectRan.current = true;
         }
       } catch (err) {
+        // Ignorar erros de abortamento
+        if (err.name === 'AbortError') return;
+        
         console.error("Error fetching dashboard data:", err);
-        if (isMounted) {
+        if (isMounted.current) {
           setError("Erro ao carregar dados. Por favor, tente novamente.");
           setLoading(false);
           effectRan.current = true;
@@ -234,9 +251,9 @@ const NewDashboard = ({ user }) => {
     
     fetchAllData();
     
-    // Limpar recursos quando o componente for desmontado
+    // Função de limpeza para abortar requisições pendentes
     return () => {
-      isMounted = false;
+      controller.abort();
     };
   }, [user?.id, user?.token, API_URL]); // Dependências mínimas
 
@@ -247,7 +264,11 @@ const NewDashboard = ({ user }) => {
       <div className="p-4 bg-red-100 dark:bg-red-900 dark:bg-opacity-20 border border-red-400 text-red-700 dark:text-red-300 rounded mb-4">
         <p>{error}</p>
         <button 
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            effectRan.current = false;
+            setLoading(true);
+            setError(null);
+          }}
           className="mt-2 bg-red-500 text-white px-4 py-2 rounded"
         >
           Tentar novamente

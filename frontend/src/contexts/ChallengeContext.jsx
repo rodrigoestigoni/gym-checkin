@@ -1,22 +1,23 @@
 // ChallengeContext.jsx - Corrigido para evitar re-renderizações desnecessárias
-import React, { createContext, useState, useContext, useCallback } from 'react';
+import React, { createContext, useState, useContext, useCallback, useMemo } from 'react';
 
 const ChallengeContext = createContext();
 
 export const ChallengeProvider = ({ children }) => {
-  const [activeChallenge, setActiveChallenge] = useState(null);
+  const [activeChallenge, setActiveChallengeState] = useState(null);
   
   // Use useCallback para evitar a recriação da função em cada renderização
-  const updateActiveChallenge = useCallback((challenge) => {
+  const setActiveChallenge = useCallback((challenge) => {
     if (!challenge) {
-      setActiveChallenge(null);
+      setActiveChallengeState(null);
       return;
     }
     
     // Verificar se é o mesmo desafio para evitar atualizações desnecessárias
-    setActiveChallenge(current => {
+    setActiveChallengeState(current => {
       if (current && current.id === challenge.id) {
-        return current; // Não atualiza se for o mesmo ID
+        // Se já temos o mesmo desafio, retorna o current para evitar re-renderização
+        return current;
       }
       console.log("Atualizando desafio ativo no contexto", challenge.id);
       return challenge;
@@ -25,18 +26,27 @@ export const ChallengeProvider = ({ children }) => {
   
   // Função para limpar o desafio ativo
   const clearActiveChallenge = useCallback(() => {
-    setActiveChallenge(null);
+    setActiveChallengeState(null);
   }, []);
 
+  // Use useMemo para o valor do contexto para evitar re-renderizações desnecessárias
+  const contextValue = useMemo(() => ({
+    activeChallenge, 
+    setActiveChallenge,
+    clearActiveChallenge
+  }), [activeChallenge, setActiveChallenge, clearActiveChallenge]);
+
   return (
-    <ChallengeContext.Provider value={{ 
-      activeChallenge, 
-      setActiveChallenge: updateActiveChallenge,
-      clearActiveChallenge
-    }}>
+    <ChallengeContext.Provider value={contextValue}>
       {children}
     </ChallengeContext.Provider>
   );
 };
 
-export const useChallenge = () => useContext(ChallengeContext);
+export const useChallenge = () => {
+  const context = useContext(ChallengeContext);
+  if (!context) {
+    throw new Error('useChallenge deve ser usado dentro de um ChallengeProvider');
+  }
+  return context;
+};

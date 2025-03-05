@@ -1,5 +1,5 @@
 // frontend/src/components/OverallRanking.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTrophy, faMedal, faDumbbell, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
@@ -7,56 +7,53 @@ const OverallRanking = () => {
   const [overall, setOverall] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const fetchInProgress = useRef(false);
+  const isMounted = useRef(true);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+
+  // Importante: Controlar o ciclo de vida do componente
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Função para buscar e processar dados do ranking
     const fetchRanking = async () => {
+      // Evitar multiplas chamadas simultâneas
+      if (fetchInProgress.current) return;
+      fetchInProgress.current = true;
+
       try {
         setLoading(true);
         
-        // Buscar o ranking geral
+        // Buscar o ranking geral com no-cache para evitar dados antigos
         const res = await fetch(`${API_URL}/ranking/overall`, {
-          headers: { "Cache-Control": "no-cache" }
+          headers: { 
+            "Cache-Control": "no-cache" 
+          }
         });
+        
+        if (!isMounted.current) return;
         
         if (res.ok) {
           const data = await res.json();
           
           if (data.overall && Array.isArray(data.overall)) {
-            // Criar um mapa de usuários para evitar requisições duplicadas
-            const userCheckins = {};
-            
-            // Processar os dados do ranking
-            const promises = data.overall.map(async (user) => {
-              // Verificamos se já temos os check-ins deste usuário em cache
-              if (!userCheckins[user.id]) {
-                try {
-                  // Solicitamos os check-ins para este usuário
-                  const checkinRes = await fetch(`${API_URL}/users/${user.id}/checkins/?skip=0&limit=1000`);
-                  
-                  if (checkinRes.ok) {
-                    const checkinData = await checkinRes.json();
-                    // Armazenamos o total de check-ins no cache
-                    userCheckins[user.id] = checkinData.length;
-                  } else {
-                    userCheckins[user.id] = 0;
-                  }
-                } catch (error) {
-                  console.error(`Erro ao buscar check-ins do usuário ${user.id}:`, error);
-                  userCheckins[user.id] = 0;
-                }
-              }
-              
-              // Retornamos o usuário com o total de check-ins
+            // Verificar se os pontos estão presentes nos dados
+            // Alguns usuários podem ter pontos incorretos ou ausentes
+            const processedUsers = data.overall.map(user => {
               return {
                 ...user,
-                total_checkins: userCheckins[user.id] || 0
+                // Garantir que points seja um número e não null
+                points: user.points || 0,
+                total_checkins: user.total_checkins || 0
               };
             });
             
-            // Processamos todas as promessas e ordenamos por pontos
-            const processedUsers = await Promise.all(promises);
+            // Ordenar usuários por pontos
             const sortedUsers = processedUsers.sort((a, b) => b.points - a.points);
             
             // Atribuímos rankings considerando possíveis empates
@@ -75,18 +72,27 @@ const OverallRanking = () => {
               };
             });
             
-            setOverall(rankedUsers);
+            if (isMounted.current) {
+              setOverall(rankedUsers);
+            }
           } else {
-            setOverall([]);
+            if (isMounted.current) {
+              setOverall([]);
+            }
           }
         } else {
           throw new Error('Falha ao buscar ranking');
         }
       } catch (err) {
         console.error("Erro ao buscar ranking:", err);
-        setError("Não foi possível carregar o ranking.");
+        if (isMounted.current) {
+          setError("Não foi possível carregar o ranking.");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted.current) {
+          setLoading(false);
+        }
+        fetchInProgress.current = false;
       }
     };
     
