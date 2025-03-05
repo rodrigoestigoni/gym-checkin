@@ -1,14 +1,15 @@
 // NewDashboard.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faPlus, faFire, faTrophy, faChartLine, 
-  faCheckCircle, faCalendarCheck, faHistory 
+  faCheckCircle, faCalendarCheck, faHistory,
+  faExclamationTriangle, faInfoCircle
 } from '@fortawesome/free-solid-svg-icons';
 
 const NewDashboard = ({ user }) => {
-  // State variables from both dashboards
+  // State variables
   const [weekData, setWeekData] = useState([]);
   const [stats, setStats] = useState({
     totalCheckins: 0,
@@ -22,15 +23,26 @@ const NewDashboard = ({ user }) => {
   const [activeChallenges, setActiveChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Referência para controlar se o efeito já foi executado
+  const effectRan = useRef(false);
+  
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const MIN_TRAINING_DAYS = 3;
 
   useEffect(() => {
-    if (!user?.id) return;
+    // Prevenir execuções múltiplas (especialmente em modo estrito)
+    if (effectRan.current) return;
+    
+    if (!user?.id || !user?.token) return;
+    
+    // Flag para limpar recursos quando o componente for desmontado
+    let isMounted = true;
     
     const fetchAllData = async () => {
       try {
         setLoading(true);
+        console.log("Iniciando busca de dados para o dashboard");
         
         // Fetch data in parallel for better performance
         const [weeklyRes, checkinsRes, rankingRes, challengesRes] = await Promise.all([
@@ -55,11 +67,17 @@ const NewDashboard = ({ user }) => {
             headers: { "Cache-Control": "no-cache" }
           }),
           
-          // Active challenges
+          // Active challenges - APENAS UMA CHAMADA
           fetch(`${API_URL}/challenge-participation/`, {
-            headers: { Authorization: `Bearer ${user.token}` }
+            headers: { 
+              Authorization: `Bearer ${user.token}`,
+              "Cache-Control": "no-cache"
+            }
           })
         ]);
+        
+        // Verificar se o componente ainda está montado
+        if (!isMounted) return;
         
         // Process weekly data
         if (weeklyRes.ok) {
@@ -75,7 +93,7 @@ const NewDashboard = ({ user }) => {
             return { day, checkins: dayCheckins };
           });
           
-          setWeekData(weekProcessed);
+          if (isMounted) setWeekData(weekProcessed);
         }
         
         // Process all checkins for stats
@@ -151,15 +169,17 @@ const NewDashboard = ({ user }) => {
             }
           }
           
-          setStats({
-            totalCheckins,
-            thisWeekCheckins,
-            lastWeekCheckins,
-            averagePerWeek: Math.round(averagePerWeek * 10) / 10,
-            streakDays,
-            points: user.points || 0,
-            ranking: 0 // Will be updated from ranking data
-          });
+          if (isMounted) {
+            setStats({
+              totalCheckins,
+              thisWeekCheckins,
+              lastWeekCheckins,
+              averagePerWeek: Math.round(averagePerWeek * 10) / 10,
+              streakDays,
+              points: user.points || 0,
+              ranking: 0 // Will be updated from ranking data
+            });
+          }
         }
         
         // Process ranking data
@@ -173,29 +193,52 @@ const NewDashboard = ({ user }) => {
             userRanking = rankingData.overall.indexOf(foundUser) + 1;
             
             // Update stats with ranking info
-            setStats(prev => ({
-              ...prev,
-              ranking: userRanking
-            }));
+            if (isMounted) {
+              setStats(prev => ({
+                ...prev,
+                ranking: userRanking
+              }));
+            }
           }
         }
         
-        // Process challenge data
+        // Process challenge data - apenas uma vez
         if (challengesRes.ok) {
           const challengeData = await challengesRes.json();
-          setActiveChallenges(challengeData);
+          
+          // Filtrar apenas desafios ativos
+          const now = new Date();
+          const active = challengeData.filter(item => {
+            const startDate = new Date(item.challenge.start_date);
+            const endDate = new Date(item.challenge.end_date);
+            return now >= startDate && now <= endDate && item.participant.approved;
+          });
+          
+          if (isMounted) setActiveChallenges(active);
         }
         
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          // Marcar que o efeito já foi executado
+          effectRan.current = true;
+        }
       } catch (err) {
         console.error("Error fetching dashboard data:", err);
-        setError("Erro ao carregar dados. Por favor, tente novamente.");
-        setLoading(false);
+        if (isMounted) {
+          setError("Erro ao carregar dados. Por favor, tente novamente.");
+          setLoading(false);
+          effectRan.current = true;
+        }
       }
     };
     
     fetchAllData();
-  }, [user?.id, user?.token, API_URL]);
+    
+    // Limpar recursos quando o componente for desmontado
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, user?.token, API_URL]); // Dependências mínimas
 
   if (!user) return <p>Por favor, faça login.</p>;
   
@@ -270,11 +313,11 @@ const NewDashboard = ({ user }) => {
           <p className="text-sm text-gray-500 dark:text-gray-400">Seu recorde atual</p>
           <div className="mt-3">
             <Link 
-              to="/checkin" 
+              to="/challenges" 
               className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center"
             >
-              <FontAwesomeIcon icon={faPlus} className="mr-2" />
-              Fazer check-in
+              <FontAwesomeIcon icon={faTrophy} className="mr-2" />
+              Ver Desafios
             </Link>
           </div>
         </div>
@@ -379,10 +422,25 @@ const NewDashboard = ({ user }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {activeChallenges.length === 0 ? (
             <div className="col-span-full text-center py-8 bg-white dark:bg-gray-800 rounded-lg shadow">
-              <p className="text-gray-500 dark:text-gray-400">Nenhum desafio ativo no momento.</p>
-              <Link to="/challenges/search" className="text-blue-500 hover:underline mt-2 inline-block">
-                Encontrar um desafio
-              </Link>
+              <FontAwesomeIcon icon={faExclamationTriangle} className="text-yellow-500 text-4xl mb-4" />
+              <p className="text-xl font-bold mb-2">Nenhum desafio ativo</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Você precisa criar ou participar de desafios para fazer check-ins.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <Link 
+                  to="/challenges/create" 
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
+                >
+                  Criar Desafio
+                </Link>
+                <Link 
+                  to="/challenges" 
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+                >
+                  Ver Desafios
+                </Link>
+              </div>
             </div>
           ) : (
             activeChallenges.map((item) => {
@@ -408,12 +466,20 @@ const NewDashboard = ({ user }) => {
                       <span className="text-xs">{participant.progress} / {challenge.target}</span>
                       <span className="text-xs">{Math.round(progress)}%</span>
                     </div>
-                    <Link 
-                      to={`/challenge/${challenge.id}/dashboard`}
-                      className="bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded block text-center"
-                    >
-                      Ver Desafio
-                    </Link>
+                    <div className="flex space-x-2">
+                      <Link 
+                        to={`/challenge/${challenge.id}/dashboard`}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded text-center"
+                      >
+                        Dashboard
+                      </Link>
+                      <Link 
+                        to={`/challenge/${challenge.id}/checkins`}
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded text-center"
+                      >
+                        Check-in
+                      </Link>
+                    </div>
                   </div>
                 </div>
               );
@@ -424,14 +490,6 @@ const NewDashboard = ({ user }) => {
 
       {/* Quick Links */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Link 
-          to="/checkin"
-          className="bg-green-500 hover:bg-green-600 text-white rounded-lg p-4 flex items-center justify-center shadow transition-colors"
-        >
-          <FontAwesomeIcon icon={faCheckCircle} className="mr-2" />
-          Novo Check-in
-        </Link>
-        
         <Link 
           to="/history"
           className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg p-4 flex items-center justify-center shadow transition-colors"
@@ -446,6 +504,14 @@ const NewDashboard = ({ user }) => {
         >
           <FontAwesomeIcon icon={faTrophy} className="mr-2" />
           Todos os Desafios
+        </Link>
+        
+        <Link 
+          to="/challenges/create"
+          className="bg-green-500 hover:bg-green-600 text-white rounded-lg p-4 flex items-center justify-center shadow transition-colors"
+        >
+          <FontAwesomeIcon icon={faPlus} className="mr-2" />
+          Criar Desafio
         </Link>
       </section>
     </div>

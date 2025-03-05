@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { ChallengeProvider, useChallenge } from './contexts/ChallengeContext';
 import Header from "./components/Header";
 import Login from "./components/Login";
 import Register from "./components/Register";
-import CheckinForm from "./components/CheckinForm";
 import RankingTabs from "./components/RankingTabs";
 import PrivateRoute from "./components/PrivateRoute";
 import Profile from "./components/Profile";
@@ -18,7 +17,6 @@ import ImprovedDashboard from "./components/ImprovedDashboard";
 
 import NewDashboard from "./components/NewDashboard";
 import EnhancedHistory from "./components/EnhancedHistory";
-import ChallengeDynamicCheckinForm from "./components/ChallengeDynamicCheckinForm";
 
 import { useAuth } from "./services/api";
 
@@ -90,15 +88,17 @@ const App = () => {
             <Routes>
               <Route path="/login" element={<Login setUser={setUser} />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/checkin" element={<PrivateRoute user={user}><CheckinForm user={user} /></PrivateRoute>} />
+              
+              {/* Redireciona o checkin para os desafios */}
+              <Route path="/checkin" element={<PrivateRoute user={user}><Navigate to="/challenges" replace /></PrivateRoute>} />
               
               <Route path="/dashboard" element={<PrivateRoute user={user}><NewDashboard user={user} /></PrivateRoute>} />
-              <Route path="/history" element={<PrivateRoute user={user}><EnhancedHistory user={user} challengeId="5" /></PrivateRoute>} />
+              <Route path="/history" element={<PrivateRoute user={user}><EnhancedHistory user={user} /></PrivateRoute>} />
               <Route path="/ranking" element={<PrivateRoute user={user}><RankingTabs /></PrivateRoute>} />
 
               <Route path="/profile" element={<PrivateRoute user={user}><Profile user={user} setUser={setUser} /></PrivateRoute>} />
               
-              <Route path="/home" element={<PrivateRoute user={user}><ImprovedDashboard user={user} /></PrivateRoute>} />
+              <Route path="/home" element={<PrivateRoute user={user}><NewDashboard user={user} /></PrivateRoute>} />
               
               <Route path="/challenges/*" element={<PrivateRoute user={user}><ChallengesDashboard user={user} /></PrivateRoute>} />
               <Route path="/challenges/:challengeId/edit" element={<PrivateRoute user={user}><ChallengeEdit user={user} /></PrivateRoute>} />

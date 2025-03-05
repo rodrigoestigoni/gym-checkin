@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -7,12 +7,37 @@ import {
   faUserCog, 
   faUser, 
   faBars, 
-  faTimes 
+  faTimes,
+  faTrophy
 } from '@fortawesome/free-solid-svg-icons';
 
 const Header = ({ user, setUser }) => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeChallenges, setActiveChallenges] = useState([]);
+  const [showChallengesDropdown, setShowChallengesDropdown] = useState(false);
+  const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+
+  // Buscar desafios ativos quando o usuário estiver logado
+  useEffect(() => {
+    if (user?.token) {
+      fetch(`${API_URL}/challenge-participation/`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      })
+        .then(res => res.json())
+        .then(data => {
+          // Filtrar desafios ativos (data atual entre start_date e end_date)
+          const now = new Date();
+          const active = data.filter(item => {
+            const startDate = new Date(item.challenge.start_date);
+            const endDate = new Date(item.challenge.end_date);
+            return now >= startDate && now <= endDate && item.participant.approved;
+          });
+          setActiveChallenges(active);
+        })
+        .catch(err => console.error("Erro ao buscar desafios ativos:", err));
+    }
+  }, [user, API_URL]);
 
   const handleLogout = () => {
     // Limpa localStorage e o estado do usuário
@@ -43,13 +68,68 @@ const Header = ({ user, setUser }) => {
         <div className="hidden md:flex md:items-center md:space-x-4">
           {user ? (
             <>
-              <Link to="/checkin" className="hover:text-green-500">Checkin</Link>
+              {/* Dropdown para Desafios Ativos */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowChallengesDropdown(!showChallengesDropdown)}
+                  className="flex items-center hover:text-green-500"
+                >
+                  <FontAwesomeIcon icon={faTrophy} className="mr-1" />
+                  Desafios
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {showChallengesDropdown && (
+                  <div className="absolute right-0 mt-2 py-2 w-64 bg-white dark:bg-gray-700 rounded-md shadow-xl z-20">
+                    <Link 
+                      to="/challenges"
+                      className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
+                      onClick={() => setShowChallengesDropdown(false)}
+                    >
+                      Todos os Desafios
+                    </Link>
+                    <div className="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+                    
+                    {activeChallenges.length > 0 ? (
+                      <>
+                        <div className="px-4 py-1 text-xs text-gray-500 dark:text-gray-400">
+                          Desafios Ativos:
+                        </div>
+                        {activeChallenges.map(item => (
+                          <Link 
+                            key={item.challenge.id}
+                            to={`/challenge/${item.challenge.id}/dashboard`}
+                            className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
+                            onClick={() => setShowChallengesDropdown(false)}
+                          >
+                            {item.challenge.title}
+                          </Link>
+                        ))}
+                        <div className="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+                      </>
+                    ) : (
+                      <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">
+                        Nenhum desafio ativo
+                      </div>
+                    )}
+                    
+                    <Link 
+                      to="/challenges/create"
+                      className="block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-600"
+                      onClick={() => setShowChallengesDropdown(false)}
+                    >
+                      + Criar Novo Desafio
+                    </Link>
+                  </div>
+                )}
+              </div>
+
               <Link to="/dashboard" className="hover:text-green-500">Dashboard</Link>
               <Link to="/history" className="hover:text-green-500">Histórico</Link>
               <Link to="/ranking" className="hover:text-green-500">Ranking</Link>
               
-              {/* <Link to="/challenge-checkin" className="hover:text-green-500">Check-in em Desafio</Link> */}
-
               {user.is_admin && (
                 <Link to="/admin" className="hover:text-green-500 flex items-center">
                   <FontAwesomeIcon icon={faUserCog} className="mr-1" />
@@ -88,9 +168,6 @@ const Header = ({ user, setUser }) => {
             {user ? (
               <>
                 <li>
-                  <Link onClick={() => setMenuOpen(false)} to="/checkin" className="block hover:text-green-500">Checkin</Link>
-                </li>
-                <li>
                   <Link onClick={() => setMenuOpen(false)} to="/dashboard" className="block hover:text-green-500">Dashboard</Link>
                 </li>
                 <li>
@@ -102,6 +179,27 @@ const Header = ({ user, setUser }) => {
                 <li>
                   <Link onClick={() => setMenuOpen(false)} to="/challenges" className="block hover:text-green-500">Desafios</Link>
                 </li>
+                
+                {/* Desafios Ativos no menu mobile */}
+                {activeChallenges.length > 0 && (
+                  <li className="pl-4">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Desafios Ativos:</span>
+                    <ul className="pl-2 mt-1 space-y-1">
+                      {activeChallenges.map(item => (
+                        <li key={item.challenge.id}>
+                          <Link 
+                            to={`/challenge/${item.challenge.id}/dashboard`}
+                            className="block text-sm hover:text-green-500"
+                            onClick={() => setMenuOpen(false)}
+                          >
+                            - {item.challenge.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                )}
+                
                 {user.is_admin && (
                   <li>
                     <Link onClick={() => setMenuOpen(false)} to="/admin" className="block hover:text-green-500">

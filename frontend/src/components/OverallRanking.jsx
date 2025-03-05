@@ -1,28 +1,7 @@
 // frontend/src/components/OverallRanking.jsx
 import React, { useEffect, useState } from "react";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrophy, faMedal, faDumbbell } from '@fortawesome/free-solid-svg-icons';
-import { api } from "../services/api";
-
-const computeOverallRanking = (users, scoreKey) => {
-  // Ordena os usuários de forma decrescente pelo score
-  const sortedUsers = [...users].sort((a, b) => b[scoreKey] - a[scoreKey]);
-  let rankedUsers = [];
-  let currentRank = 1;
-  
-  if (sortedUsers.length > 0) {
-    rankedUsers.push({ ...sortedUsers[0], rank: currentRank });
-  }
-  
-  for (let i = 1; i < sortedUsers.length; i++) {
-    if (sortedUsers[i][scoreKey] < sortedUsers[i - 1][scoreKey]) {
-      currentRank++;  // incrementa somente quando o score diminui
-    }
-    rankedUsers.push({ ...sortedUsers[i], rank: currentRank });
-  }
-  
-  return rankedUsers;
-};
+import { faTrophy, faMedal, faDumbbell, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
 const OverallRanking = () => {
   const [overall, setOverall] = useState([]);
@@ -31,58 +10,72 @@ const OverallRanking = () => {
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
+    // Função para buscar e processar dados do ranking
     const fetchRanking = async () => {
       try {
         setLoading(true);
         
-        // Buscar o ranking geral padrão
-        const res = await fetch(`${API_URL}/ranking/overall`);
+        // Buscar o ranking geral
+        const res = await fetch(`${API_URL}/ranking/overall`, {
+          headers: { "Cache-Control": "no-cache" }
+        });
         
         if (res.ok) {
           const data = await res.json();
           
-          if (data.overall) {
-            // Precisamos buscar o número total de check-ins para cada usuário
-            // Como a API não fornece isso diretamente no endpoint de ranking,
-            // precisamos fazer uma solução alternativa
+          if (data.overall && Array.isArray(data.overall)) {
+            // Criar um mapa de usuários para evitar requisições duplicadas
+            const userCheckins = {};
             
-            // Em um cenário ideal, a API forneceria essa informação diretamente,
-            // mas vamos simular uma solução no frontend:
-            
-            const usersWithCheckinCount = await Promise.all(
-              data.overall.map(async (user) => {
+            // Processar os dados do ranking
+            const promises = data.overall.map(async (user) => {
+              // Verificamos se já temos os check-ins deste usuário em cache
+              if (!userCheckins[user.id]) {
                 try {
-                  // Aqui estamos fazendo uma requisição individual para cada usuário
-                  // Isso não é ideal em termos de performance, mas serve como solução temporária
-                  // Em produção, seria melhor ter um endpoint dedicado para isso
-                  const checkinRes = await fetch(`${API_URL}/users/${user.id}/checkins/?skip=0&limit=1000`, {
-                    // Nota: em um cenário real, isso exigiria autenticação de admin
-                    // Aqui é apenas uma demonstração da solução
-                  });
+                  // Solicitamos os check-ins para este usuário
+                  const checkinRes = await fetch(`${API_URL}/users/${user.id}/checkins/?skip=0&limit=1000`);
                   
                   if (checkinRes.ok) {
                     const checkinData = await checkinRes.json();
-                    return {
-                      ...user,
-                      total_checkins: checkinData.length
-                    };
+                    // Armazenamos o total de check-ins no cache
+                    userCheckins[user.id] = checkinData.length;
+                  } else {
+                    userCheckins[user.id] = 0;
                   }
-                  return {
-                    ...user,
-                    total_checkins: 0
-                  };
                 } catch (error) {
                   console.error(`Erro ao buscar check-ins do usuário ${user.id}:`, error);
-                  return {
-                    ...user,
-                    total_checkins: 0
-                  };
+                  userCheckins[user.id] = 0;
                 }
-              })
-            );
+              }
+              
+              // Retornamos o usuário com o total de check-ins
+              return {
+                ...user,
+                total_checkins: userCheckins[user.id] || 0
+              };
+            });
             
-            const computed = computeOverallRanking(usersWithCheckinCount, "points");
-            setOverall(computed);
+            // Processamos todas as promessas e ordenamos por pontos
+            const processedUsers = await Promise.all(promises);
+            const sortedUsers = processedUsers.sort((a, b) => b.points - a.points);
+            
+            // Atribuímos rankings considerando possíveis empates
+            let currentRank = 1;
+            let currentPoints = -1;
+            
+            const rankedUsers = sortedUsers.map((user, index) => {
+              if (user.points !== currentPoints) {
+                currentRank = index + 1;
+                currentPoints = user.points;
+              }
+              
+              return {
+                ...user,
+                rank: currentRank
+              };
+            });
+            
+            setOverall(rankedUsers);
           } else {
             setOverall([]);
           }
@@ -123,7 +116,8 @@ const OverallRanking = () => {
 
   if (error) {
     return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+      <div className="bg-red-100 dark:bg-red-900 dark:bg-opacity-20 border border-red-400 text-red-700 dark:text-red-300 px-4 py-3 rounded flex items-center">
+        <FontAwesomeIcon icon={faExclamationTriangle} className="mr-2" />
         <p>{error}</p>
       </div>
     );
@@ -140,10 +134,10 @@ const OverallRanking = () => {
           <table className="min-w-full bg-white dark:bg-gray-800 shadow rounded">
             <thead>
               <tr className="bg-gray-100 dark:bg-gray-700">
-                <th className="py-3 px-4 border-b">Posição</th>
-                <th className="py-3 px-4 border-b">Usuário</th>
-                <th className="py-3 px-4 border-b">Pontos</th>
-                <th className="py-3 px-4 border-b">
+                <th className="py-3 px-4 border-b dark:border-gray-600">Posição</th>
+                <th className="py-3 px-4 border-b dark:border-gray-600">Usuário</th>
+                <th className="py-3 px-4 border-b dark:border-gray-600">Pontos</th>
+                <th className="py-3 px-4 border-b dark:border-gray-600">
                   <div className="flex items-center justify-center">
                     <FontAwesomeIcon icon={faDumbbell} className="mr-2" />
                     Total de Treinos
@@ -160,12 +154,12 @@ const OverallRanking = () => {
                     ${user.rank <= 3 ? 'bg-green-50 dark:bg-green-900 dark:bg-opacity-20' : ''}
                   `}
                 >
-                  <td className="py-3 px-4 border-b text-center">
+                  <td className="py-3 px-4 border-b dark:border-gray-600 text-center">
                     <div className="flex items-center justify-center text-xl">
                       {getMedalIcon(user.rank)}
                     </div>
                   </td>
-                  <td className="py-3 px-4 border-b">
+                  <td className="py-3 px-4 border-b dark:border-gray-600">
                     <div className="flex items-center">
                       {user.profile_image ? (
                         <img
@@ -181,8 +175,8 @@ const OverallRanking = () => {
                       <span className="font-medium">{user.username}</span>
                     </div>
                   </td>
-                  <td className="py-3 px-4 border-b text-center font-bold">{user.points}</td>
-                  <td className="py-3 px-4 border-b text-center">
+                  <td className="py-3 px-4 border-b dark:border-gray-600 text-center font-bold">{user.points}</td>
+                  <td className="py-3 px-4 border-b dark:border-gray-600 text-center">
                     <span className="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100 py-1 px-3 rounded-full">
                       {user.total_checkins || 0}
                     </span>
