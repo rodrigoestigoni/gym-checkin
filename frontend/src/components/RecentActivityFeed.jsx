@@ -1,4 +1,4 @@
-// src/components/RecentActivityFeed.jsx - Corrigido
+// src/components/RecentActivityFeed.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faHistory, faCheckCircle, faUserPlus, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
@@ -9,9 +9,16 @@ const RecentActivityFeed = ({ challengeId, user }) => {
   const [error, setError] = useState(null);
   // Use uma referência para controlar se já está carregando
   const isLoadingRef = useRef(false);
+  const previousChallengeId = useRef(null);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
   useEffect(() => {
+    // Verifica se o challengeId mudou para forçar nova busca
+    if (previousChallengeId.current !== challengeId) {
+      isLoadingRef.current = false;
+      previousChallengeId.current = challengeId;
+    }
+    
     // Função para buscar atividades
     const fetchActivity = async () => {
       // Verificar se já está carregando ou se não tem ID
@@ -25,13 +32,22 @@ const RecentActivityFeed = ({ challengeId, user }) => {
       try {
         console.log("Buscando atividades para o desafio:", challengeId);
         const res = await fetch(`${API_URL}/challenges/${challengeId}/activity`, {
-          headers: { Authorization: `Bearer ${user.token}` },
+          headers: { 
+            Authorization: `Bearer ${user.token}`,
+            "Cache-Control": "no-cache"
+          },
         });
         
         if (res.ok) {
           const data = await res.json();
           console.log("Atividades recebidas:", data);
-          setActivities(data);
+          
+          // CORREÇÃO: Filtrar apenas as atividades deste desafio específico
+          const filteredActivities = data.filter(activity => 
+            activity.challenge_id === parseInt(challengeId)
+          );
+          
+          setActivities(filteredActivities);
         } else {
           console.error("Erro ao buscar atividades:", await res.text());
           setError("Erro ao carregar atividades");
@@ -52,7 +68,7 @@ const RecentActivityFeed = ({ challengeId, user }) => {
     return () => {
       isLoadingRef.current = false;
     };
-  }, [challengeId, user?.token, API_URL]);
+  }, [challengeId, user?.token, API_URL]); // Dependência em challengeId para reagir às mudanças
 
   const getActivityIcon = (type) => {
     switch (type) {
@@ -97,7 +113,7 @@ const RecentActivityFeed = ({ challengeId, user }) => {
     return (
       <div className="text-center py-10 bg-gray-50 dark:bg-gray-700 rounded-lg">
         <FontAwesomeIcon icon={faHistory} className="text-gray-400 text-4xl mb-3" />
-        <p className="text-gray-500 dark:text-gray-400">Ainda não há atividades registradas.</p>
+        <p className="text-gray-500 dark:text-gray-400">Ainda não há atividades registradas neste desafio.</p>
         <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
           Faça check-ins neste desafio para ver atividades aqui!
         </p>
@@ -109,7 +125,7 @@ const RecentActivityFeed = ({ challengeId, user }) => {
     <div className="space-y-4">
       {activities.map((activity) => (
         <div 
-          key={`${activity.type}-${activity.id}`}
+          key={`${activity.type}-${activity.id}-${activity.timestamp}`}
           className="flex items-start p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
         >
           <div className="mr-3 mt-1">

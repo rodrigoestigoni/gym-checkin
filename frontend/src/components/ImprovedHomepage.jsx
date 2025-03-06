@@ -319,6 +319,75 @@ const ImprovedHomepage = ({ user }) => {
 
   return (
     <div className="p-4">
+
+        {/* Desafios Ativos */}
+      <section className="mb-8">
+        <h2 className="text-2xl font-bold mb-4 flex items-center">
+          <FontAwesomeIcon icon={faFire} className="mr-2 text-orange-500" />
+          Desafios Ativos
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {activeChallenges.length === 0 ? (
+            <div className="col-span-full bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
+              <FontAwesomeIcon icon={faExclamationTriangle} className="text-yellow-500 text-4xl mb-4" />
+              <p className="text-xl font-bold mb-2">Nenhum desafio ativo</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Você ainda não tem desafios ativos. Crie um novo ou participe de um existente.
+              </p>
+              <div className="flex flex-col sm:flex-row justify-center gap-2">
+                <Link 
+                  to="/challenges/create" 
+                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
+                >
+                  Criar Desafio
+                </Link>
+              </div>
+            </div>
+          ) : (
+            activeChallenges.map((item) => {
+              const { challenge, participant } = item;
+              const progress = challenge.target ? (participant.progress / challenge.target) * 100 : 0;
+              
+              return (
+                <div 
+                  key={challenge.id} 
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden transition-transform hover:scale-105"
+                >
+                  <div className="h-2 bg-gray-200 dark:bg-gray-700">
+                    <div 
+                      className="h-full bg-green-500" 
+                      style={{ width: `${Math.min(100, progress)}%` }}
+                    ></div>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-bold text-lg">{challenge.title}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{challenge.modality}</p>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs">{participant.progress} / {challenge.target}</span>
+                      <span className="text-xs">{Math.round(progress)}%</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Link 
+                        to={`/challenge/${challenge.id}/dashboard`}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded text-center"
+                      >
+                        Dashboard
+                      </Link>
+                      <Link 
+                        to={`/challenge/${challenge.id}/checkins`}
+                        className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded text-center"
+                      >
+                        Check-in
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
       <h1 className="text-3xl font-bold mb-6">Meus Desafios</h1>
 
       {/* Seção Principais Ações */}
@@ -408,75 +477,6 @@ const ImprovedHomepage = ({ user }) => {
               <p className="text-xs text-gray-600 dark:text-gray-400">Convites pendentes</p>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Desafios Ativos */}
-      <section className="mb-8">
-        <h2 className="text-2xl font-bold mb-4 flex items-center">
-          <FontAwesomeIcon icon={faFire} className="mr-2 text-orange-500" />
-          Meus Desafios Ativos
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {activeChallenges.length === 0 ? (
-            <div className="col-span-full bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-              <FontAwesomeIcon icon={faExclamationTriangle} className="text-yellow-500 text-4xl mb-4" />
-              <p className="text-xl font-bold mb-2">Nenhum desafio ativo</p>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                Você ainda não tem desafios ativos. Crie um novo ou participe de um existente.
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-2">
-                <Link 
-                  to="/challenges/create" 
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg"
-                >
-                  Criar Desafio
-                </Link>
-              </div>
-            </div>
-          ) : (
-            activeChallenges.map((item) => {
-              const { challenge, participant } = item;
-              const progress = challenge.target ? (participant.progress / challenge.target) * 100 : 0;
-              
-              return (
-                <div 
-                  key={challenge.id} 
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden transition-transform hover:scale-105"
-                >
-                  <div className="h-2 bg-gray-200 dark:bg-gray-700">
-                    <div 
-                      className="h-full bg-green-500" 
-                      style={{ width: `${Math.min(100, progress)}%` }}
-                    ></div>
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-bold text-lg">{challenge.title}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{challenge.modality}</p>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs">{participant.progress} / {challenge.target}</span>
-                      <span className="text-xs">{Math.round(progress)}%</span>
-                    </div>
-                    <div className="flex space-x-2">
-                      <Link 
-                        to={`/challenge/${challenge.id}/dashboard`}
-                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1 rounded text-center"
-                      >
-                        Dashboard
-                      </Link>
-                      <Link 
-                        to={`/challenge/${challenge.id}/checkins`}
-                        className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm px-3 py-1 rounded text-center"
-                      >
-                        Check-in
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-// ChallengeDashboard.jsx - Corrigido para combinar o estilo do NewDashboard e evitar loops
+// ChallengeDashboard.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -38,6 +38,8 @@ const ChallengeDashboard = ({ user }) => {
   // Usar referencias para controlar o estado do componente
   const effectRan = useRef(false);
   const isMounted = useRef(true);
+  // CORREÇÃO: Adicionar a referência para o ID do desafio anterior
+  const previousChallengeId = useRef(null);
   
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
   const MIN_TRAINING_DAYS = 3; // Mínimo de dias de treino
@@ -52,6 +54,13 @@ const ChallengeDashboard = ({ user }) => {
 
   // UseEffect com controle correto para evitar loops infinitos
   useEffect(() => {
+    // Verificar se o ID do desafio mudou
+    if (previousChallengeId.current !== challengeId) {
+      // Resetar o controle do efeito para permitir uma nova busca
+      effectRan.current = false;
+      previousChallengeId.current = challengeId;
+    }
+    
     // Prevenindo múltiplas execuções no modo estrito do React
     if (effectRan.current) return;
     if (!challengeId || !user?.token) return;

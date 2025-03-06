@@ -1,4 +1,4 @@
-// ChallengeLayout.jsx
+// Correção do ChallengeLayout.jsx
 import React, { useEffect, useRef } from 'react';
 import { useParams, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { useChallenge } from '../contexts/ChallengeContext';
@@ -14,11 +14,20 @@ const ChallengeLayout = ({ user }) => {
   const navigate = useNavigate();
   const effectRan = useRef(false);
   const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
+  const previousChallengeId = useRef(null);
 
   useEffect(() => {
+    // IMPORTANTE: Esta é a correção chave - verificar se o ID do desafio mudou
+    if (previousChallengeId.current !== challengeId) {
+      // Se mudou, resetar o controle de efeito para permitir uma nova busca
+      effectRan.current = false;
+      previousChallengeId.current = challengeId;
+    }
+    
     if (effectRan.current) return;
     
     let isMounted = true;
+    const controller = new AbortController();
     
     const fetchChallenge = async () => {
       if (!challengeId || !user?.token) return;
@@ -31,6 +40,7 @@ const ChallengeLayout = ({ user }) => {
             Authorization: `Bearer ${user.token}`,
             "Cache-Control": "no-cache"
           },
+          signal: controller.signal
         });
         
         if (!isMounted) return;
@@ -48,9 +58,11 @@ const ChallengeLayout = ({ user }) => {
           }
         }
       } catch (err) {
-        console.error("ChallengeLayout: Request error", err);
-        if (isMounted) {
-          navigate('/challenges');
+        if (err.name !== 'AbortError') {
+          console.error("ChallengeLayout: Request error", err);
+          if (isMounted) {
+            navigate('/challenges');
+          }
         }
       } finally {
         if (isMounted) {
@@ -63,8 +75,9 @@ const ChallengeLayout = ({ user }) => {
     
     return () => {
       isMounted = false;
+      controller.abort();
     };
-  }, [challengeId, user?.token, navigate, setActiveChallenge]);
+  }, [challengeId, user?.token, navigate, setActiveChallenge]); // Dependência em challengeId
 
   if (!activeChallenge && !effectRan.current) {
     return (
